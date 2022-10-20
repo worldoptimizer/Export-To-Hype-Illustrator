@@ -1,0 +1,13 @@
+{
+	"fontMappingForSVG": {
+		"ArialMT": "Arial",
+		"Arial-BoldMT": {
+			"family": "Arial",
+			"weight": "bold",
+		},
+		"AndaleMono": "Andale Mono"
+	},
+	
+	"fontMappingForHypeFonts": {
+	}
+}
