@@ -327,27 +327,18 @@
 		var optimText = optimGroup.add("statictext", undefined, undefined, {name: "optimText"}); 
 			optimText.text = "    To enable cleaning install"; 
 			optimText.preferredSize.width = 180;
-			//optimText.graphics.foregroundColor = optimText.graphics.newPen(optimText.graphics.PenType.SOLID_COLOR, [0.8, 0.8, 0.8], 1);
-			//optimText.graphics.font = "dialog:11";
-		
+			
 		var optimBtn = optimGroup.add("button", undefined, undefined, {name: "optimBtn"}); 
 			optimBtn.text = "Export To Hype Helper";
 			optimBtn.onClick = function() {
-				helper_weblock_file =new File($.fileName.replace('.jsx',' Helper.webloc'));
-				if (helper_weblock_file.exists) {
-					helper_weblock_file.execute()
-				}
+				openURL('https://github.com/worldoptimizer/Export-To-Hype-Illustrator')
 			} 
 	}
-
 
 	var customSave = panel1.add("checkbox", undefined, undefined, {name: "customSave"}); 
 		customSave.helpTip = "If you check this option Export to Hype will ask you for a folder to save the symbol."; 
 		customSave.text = "Save at custom destination (rather then alongside .AI)"; 
 		customSave.alignment = ["left","top"];
-
-
-	
 	
 	// PANEL2
 	// ======
@@ -531,10 +522,7 @@
 				donationBtn.text = "Donation";
 				donationBtn.preferredSize.height = 30;	
 				donationBtn.onClick = function() {
-					donation_weblock_file =new File($.fileName.replace('.jsx',' Donation.webloc'));
-					if (donation_weblock_file.exists) {
-						donation_weblock_file.execute()
-					}
+					openURL('https://www.buymeacoffee.com/MaxZiebell')
 				}
 			
 			var cancelBtn = donationGroup.add("button", undefined, undefined, {name: "cancelBtn"}); 
@@ -1802,7 +1790,6 @@
     	return true;
 	};
 
-
 	/**
 	* Apply font names using mapping (fontMappingForSVG)
 	*
@@ -1830,6 +1817,26 @@
 			s = s.replace(new RegExp("font-family=\"'"+fontFamily+"'\"","gm"), newFontString);
 		}
 		return s;
+	}
+
+	/**
+	 * Open the URL in the default browser.
+	 *
+	 * @param {string} url - The URL to open.
+	 */
+	function openURL(url) {
+		var file = new File(Folder.temp + '/temp.webloc');
+		file.open('w');
+		file.write('<?xml version="1.0" encoding="UTF-8"?>\n');
+		file.write('<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n');
+		file.write('<plist version="1.0">\n');
+		file.write('<dict>\n');
+		file.write('\t<key>URL</key>\n');
+		file.write('\t<string>' + url + '</string>\n');
+		file.write('</dict>\n');
+		file.write('</plist>\n');
+		file.close();
+		file.execute();
 	}
 	
 	/**
