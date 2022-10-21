@@ -746,15 +746,22 @@
 			if (rectangleForText) {
 				for(var i= 0; i < itemsForRectangles.length; ++i){
 					var item = itemsForRectangles[i];
+					
 					// get layer bounds
 					var lb = getLayerBoundsAsObject(item.geometricBounds);
-					// determine style and weight
+					
+					// determine style and weight and remap if needed
 					var _fontStyle = item.textRange.textFont.style.indexOf('Italic')==-1? 'normal' : 'italic';
 					var _fontWeight = item.textRange.textFont.style.indexOf('Bold')==-1? 'normal' : 'bold';
 					var _fontFamily = item.textRange.textFont.family;
-					if (global_settings['fontMappingForHypeFonts'][_fontFamily]){
+	
+					if (global_settings['fontMappingForHypeFonts'][_fontFamily+' '+item.textRange.textFont.style]){
+						_fontFamily = global_settings['fontMappingForHypeFonts'][_fontFamily+' '+item.textRange.textFont.style];
+					} else if (global_settings['fontMappingForHypeFonts'][_fontFamily]){
 						_fontFamily = global_settings['fontMappingForHypeFonts'][_fontFamily];
 					}
+					
+					//check if we also transfer content and clean it if needed
 					var _native = (FontMode == _FontMode_native_text);
 					var _content = _native? item.contents : '';
 					if(_native && _content!='') _content = _content
@@ -763,6 +770,7 @@
 						.replace(/</gm, '&lt;')
 						.replace(/>/gm, '&gt;');
 					var _name = cleanLayerName+"_"+(item.name? item.name : lid);
+					
 					// shouldn't be necessary as we switched the entire original document to RGB
 					// but it seems like one can have single elements with CMYK and other color spaces
 					var _textColor = item.textRange.fillColor;
@@ -787,7 +795,8 @@
 						top: lb.top,
 						left: lb.left,
 						height: lb.height,
-						width: lb.width,
+						// add a pixel to avoid line breaks
+						width: lb.width+1,
 						zIndex: 1000-lid,
 						key: 10+lid,
 						opacity: 100/100,
@@ -1793,13 +1802,14 @@
 	/**
 	* Apply font names using mapping (fontMappingForSVG)
 	*
-	* @param {string} s - SVG string
+	* @param {string} svgString - SVG string
 	* @param {object} settings - settings object
 	* @returns {string} - SVG string with fixed font names
 	*/
-	function applyFontMappingForSVG(s, settings) {
+	function applyFontMappingForSVG(svgString, settings) {
 		for (var fontFamily in settings['fontMappingForSVG']){
-			var fontFamilyLookup = settings['fontMappingForSVG'][fontFamily], newFontString='';
+			var fontFamilyLookup = settings['fontMappingForSVG'][fontFamily];
+			var newFontString = '';
 			if (typeof fontFamilyLookup == 'object') {
 				if (fontFamilyLookup.hasOwnProperty('family')) {
 					newFontString += "font-family='"+fontFamilyLookup['family']+"'";
@@ -1814,9 +1824,9 @@
 			} else {
 				newFontString = "font-family='"+fontFamilyLookup+"'";
 			}
-			s = s.replace(new RegExp("font-family=\"'"+fontFamily+"'\"","gm"), newFontString);
+			svgString = svgString.replace(new RegExp("font-family=\"'"+fontFamily+"'\"","gm"), newFontString);
 		}
-		return s;
+		return svgString;
 	}
 
 	/**
