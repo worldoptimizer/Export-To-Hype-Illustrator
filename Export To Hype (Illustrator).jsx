@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2022
- * v1.1.2
+ * v1.1.3
  */
 
 /*
@@ -20,9 +20,10 @@
  * 1.1.0  Various Bugfixes
  * 1.1.1  Settings file, Fontmapping
  * 1.1.2  Released as Open Source (MIT),
-  *       Added Hype Template export type,
+ *        Added Hype Template export type,
+ * 1.1.3  Added optimization using Export To Hype Helper.app (SVG cleaner)
  *
-*/
+ */
 
 /* 
 // BEGIN__HARVEST_EXCEPTION_ZSTRING
@@ -46,7 +47,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.2';
+	const _version = '1.1.3';
 		
 	/* @const */
 	const _linefeed = "unix"
@@ -57,8 +58,7 @@
 	For example, our script is named "Export To Hype (Illustrator).jsx", then the JSON file should be named "Export To Hype (Illustrator).json".
 	*/
 	var global_settings = {}
-	// var scriptFile = new File($.fileName);
-	// var scriptPath = scriptFile.parent.fsName;
+
 	var global_settings_file = new File($.fileName.replace('.jsx','.json'));
 	if (global_settings_file.exists) {
 		try{
@@ -180,9 +180,6 @@
 	var radiobutton3 = exportType.add("radiobutton", undefined, undefined, {name: "radiobutton3"});
 		radiobutton3.helpTip = "Select this export type to save only the resources (great for updating and relinking layer manually).";
 		radiobutton3.text = "Resources only";
-		
-	
-
 	
 	// OPTIONTABS
 	// ==========
@@ -303,10 +300,54 @@
 		divider1.alignment = "fill";
 		divider1.preferredSize.height = 1;
 
+
+	// OPTIONS
+	// ==========
+	var exportHelperPath = getExportToHypeHelperPath();
+	var canOptimize = exportHelperPath!==null;
+	var shouldOptimize = panel1.add("checkbox", undefined, undefined, { name: "shouldOptimize" });
+		shouldOptimize.helpTip = "Uncheck this if you don't want to use SVG Cleaner on your export (depends on Export To Hype Helper)).";
+		shouldOptimize.text = "Run SVG Cleaner on export (using Export To Hype Helper)";
+		shouldOptimize.alignment = ["left", "top"];
+		shouldOptimize.value = canOptimize;
+		shouldOptimize.enabled = canOptimize;
+	
+	if (!canOptimize){
+		// OPTIMGROUP
+		// ==========
+		var optimGroup = panel1.add("group", undefined, {name: "optimGroup"}); 
+			optimGroup.orientation = "row"; 
+			optimGroup.alignChildren = ["left","center"]; 
+			optimGroup.spacing = 0; 
+			optimGroup.margins = [7,0,0,0]; 
+		
+		var optimDivider = optimGroup.add("panel", undefined, undefined, {name: "optimDivider"}); 
+			optimDivider.alignment = "fill";
+		
+		var optimText = optimGroup.add("statictext", undefined, undefined, {name: "optimText"}); 
+			optimText.text = "    To enable cleaning install"; 
+			optimText.preferredSize.width = 180;
+			//optimText.graphics.foregroundColor = optimText.graphics.newPen(optimText.graphics.PenType.SOLID_COLOR, [0.8, 0.8, 0.8], 1);
+			//optimText.graphics.font = "dialog:11";
+		
+		var optimBtn = optimGroup.add("button", undefined, undefined, {name: "optimBtn"}); 
+			optimBtn.text = "Export To Hype Helper";
+			optimBtn.onClick = function() {
+				helper_weblock_file =new File($.fileName.replace('.jsx',' Helper.webloc'));
+				if (helper_weblock_file.exists) {
+					helper_weblock_file.execute()
+				}
+			} 
+	}
+
+
 	var customSave = panel1.add("checkbox", undefined, undefined, {name: "customSave"}); 
 		customSave.helpTip = "If you check this option Export to Hype will ask you for a folder to save the symbol."; 
 		customSave.text = "Save at custom destination (rather then alongside .AI)"; 
 		customSave.alignment = ["left","top"];
+
+
+	
 	
 	// PANEL2
 	// ======
@@ -490,7 +531,7 @@
 				donationBtn.text = "Donation";
 				donationBtn.preferredSize.height = 30;	
 				donationBtn.onClick = function() {
-					donation_weblock_file =new File($.fileName.replace('.jsx','.webloc'));
+					donation_weblock_file =new File($.fileName.replace('.jsx',' Donation.webloc'));
 					if (donation_weblock_file.exists) {
 						donation_weblock_file.execute()
 					}
@@ -547,6 +588,7 @@
 					customSave: customSave.value,
 					onlyResources: exportType.children[2].value == true,
 					saveAsSymbol: exportType.children[1].value == true,
+					shouldOptimize: shouldOptimize.value,
 					prefix: prefix.text,
 					FontMode : FontMode.selection.index,
 					VisibilityMode : VisibilityMode.selection.index,
@@ -582,6 +624,7 @@
 		var saveCSS_Variables = o.saveCSS_Variables || false;
 		var EmbedMode = o.EmbedMode || 0;
 		var DataURIMode = o.DataURIMode || 0;
+		var shouldOptimize = o.shouldOptimize;
 		var hypeExtension = saveAsSymbol? 'hypesymbol' : 'hypetemplate';
 		
 		// check if we have a doc path (doc is saved)
@@ -812,10 +855,15 @@
 				exportOptions.typename = ExportType.SVG;
 				app.activeDocument.exportFile(saveFile, ExportType.SVG, exportOptions);
 	
+				// apply Font Mappings for SVG to file
+				runFontMappingForSVG(saveAsFileName);
+
 				// clean SVG Illustrator produces
-				cleanSVG(saveAsFileName, {
-					layerName : layer.name
-				});
+				if(shouldOptimize) {
+					runSvgCleaner(saveAsFileName);
+				} else {
+					runHomebrewCleaner(saveAsFileName);
+				}
 	
 				// prep name
 				var name = layer.name.split('.')[0];
@@ -1006,6 +1054,95 @@
 				combine_files(js_files, docPath + '/'+docName+'-combined.js')
 			}
 	
+		}
+	}
+
+
+	/**
+	 * SVG Cleaner is an application that cleans SVG files from unnecessary data, such as editor metadata, 
+	 * comments, hidden elements, default or non-optimal values and other stuff that can be safely removed 
+	 * or converted without affecting SVG rendering result. It also has a tool to remove attributes or 
+	 * elements by their id or class.
+	 *
+	 * This function runs the SVG Cleaner Application, creates a copy of the passed file in the temp folder, 
+	 * runs SVG Cleaner and overwrites the file with the cleaned SVG.
+	 *
+	 * @param {string} filePath - The path to the SVG file that should be cleaned
+	 * @returns {boolean} true - If the SVG could be cleaned
+	 * @returns {boolean} false - If the SVG could not be cleaned
+	 */
+	function runSvgCleaner(filePath) {
+		var minifiedSvg = null;
+	
+		// just wait 100ms for any running exports
+		$.sleep(100);
+	
+		// Remove temp files if needed
+		var svgCleanerFile = new File(Folder.temp+'/temp.svg');
+		if (svgCleanerFile.exists) svgCleanerFile.remove();
+		
+		var svgCleanerFile = new File(Folder.temp+'/temp.min.svg');
+		if (svgCleanerFile.exists) svgCleanerFile.remove();
+	
+		// copy file to temp.svg
+		var svgCleanerFile = new File(filePath);
+		svgCleanerFile.copy(Folder.temp+'/temp.svg');
+		
+		// execute Export To Hype Helper.app
+		var exportToHypeHelperApp = new File("/Applications/Export To Hype Helper.app");
+		exportToHypeHelperApp.execute();
+		
+		// refresh reference (just to be safe)
+		svgCleanerFile = new File(Folder.temp+'/temp.min.svg');
+		
+		// wait for max 2 seconds for file creation
+		var svgCleanerFileExistsCounter = 0;
+		while (true) {
+			if (svgCleanerFileExistsCounter > 20) {
+				if (confirm("SVG Cleaner failed or is still running!\n\nWait for another 2 seconds?")) {
+					svgCleanerFileExistsCounter = 0;
+				} else {
+					break;
+				}
+			}
+			// if the file exists
+			if (svgCleanerFile.exists) {
+				// wait 100ms and read the file
+				$.sleep(100);
+				svgCleanerFile.open();
+				minifiedSvg = svgCleanerFile.read();
+				svgCleanerFile.close();
+				break;
+			}
+			
+			// wait 100ms and loop again
+			$.sleep(100)
+			svgCleanerFileExistsCounter++;
+		}
+
+		// if we got a minifed SVG replace original
+		if (minifiedSvg) {
+			svgCleanerFile = new File(filePath);
+			svgCleanerFile.open('w');
+			svgCleanerFile.write(minifiedSvg);
+			svgCleanerFile.close();
+			return true;
+		}
+		return false;
+	}
+
+
+	/**
+	 * This function gets the Export To Hype Helper path if it is installed
+	 *
+	 * @return {String} 
+	 */
+	function getExportToHypeHelperPath() {
+		try {
+			return new Folder('/Applications/Export To Hype Helper.app').exists? '/Applications/Export To Hype Helper.app' : null;
+		} catch (e) {
+			alert("Export to Hype: Error checking if Export To Hype Helper.app is installed", "Error", true);
+			return null;
 		}
 	}
 	
@@ -1529,80 +1666,6 @@
 	}
 	
 	/**
-	 * Convert hex colour codes to their colour names.
-	 *
-	 * `#` gets converted to `%23`, so quite a few CSS named colors are shorter than
-	 * their equivalent URL-encoded hex codes.
-	 * 
-	 * @param {string} string - A string that may contain HTML hex colour codes.
-	 * @returns {string} - The same string with hex colour codes replaced by their names.
-	 */
-	function colorCodeToShorterNames(string) {
-		var shorterNames = {
-			aqua: /#00ffff(ff)?(?!\w)|#0ff(f)?(?!\w)/gi,
-			azure: /#f0ffff(ff)?(?!\w)/gi,
-			beige: /#f5f5dc(ff)?(?!\w)/gi,
-			bisque: /#ffe4c4(ff)?(?!\w)/gi,
-			black: /#000000(ff)?(?!\w)|#000(f)?(?!\w)/gi,
-			blue: /#0000ff(ff)?(?!\w)|#00f(f)?(?!\w)/gi,
-			brown: /#a52a2a(ff)?(?!\w)/gi,
-			coral: /#ff7f50(ff)?(?!\w)/gi,
-			cornsilk: /#fff8dc(ff)?(?!\w)/gi,
-			crimson: /#dc143c(ff)?(?!\w)/gi,
-			cyan: /#00ffff(ff)?(?!\w)|#0ff(f)?(?!\w)/gi,
-			darkblue: /#00008b(ff)?(?!\w)/gi,
-			darkcyan: /#008b8b(ff)?(?!\w)/gi,
-			darkgrey: /#a9a9a9(ff)?(?!\w)/gi,
-			darkred: /#8b0000(ff)?(?!\w)/gi,
-			deeppink: /#ff1493(ff)?(?!\w)/gi,
-			dimgrey: /#696969(ff)?(?!\w)/gi,
-			gold: /#ffd700(ff)?(?!\w)/gi,
-			green: /#008000(ff)?(?!\w)/gi,
-			grey: /#808080(ff)?(?!\w)/gi,
-			honeydew: /#f0fff0(ff)?(?!\w)/gi,
-			hotpink: /#ff69b4(ff)?(?!\w)/gi,
-			indigo: /#4b0082(ff)?(?!\w)/gi,
-			ivory: /#fffff0(ff)?(?!\w)/gi,
-			khaki: /#f0e68c(ff)?(?!\w)/gi,
-			lavender: /#e6e6fa(ff)?(?!\w)/gi,
-			lime: /#00ff00(ff)?(?!\w)|#0f0(f)?(?!\w)/gi,
-			linen: /#faf0e6(ff)?(?!\w)/gi,
-			maroon: /#800000(ff)?(?!\w)/gi,
-			moccasin: /#ffe4b5(ff)?(?!\w)/gi,
-			navy: /#000080(ff)?(?!\w)/gi,
-			oldlace: /#fdf5e6(ff)?(?!\w)/gi,
-			olive: /#808000(ff)?(?!\w)/gi,
-			orange: /#ffa500(ff)?(?!\w)/gi,
-			orchid: /#da70d6(ff)?(?!\w)/gi,
-			peru: /#cd853f(ff)?(?!\w)/gi,
-			pink: /#ffc0cb(ff)?(?!\w)/gi,
-			plum: /#dda0dd(ff)?(?!\w)/gi,
-			purple: /#800080(ff)?(?!\w)/gi,
-			red: /#ff0000(ff)?(?!\w)|#f00(f)?(?!\w)/gi,
-			salmon: /#fa8072(ff)?(?!\w)/gi,
-			seagreen: /#2e8b57(ff)?(?!\w)/gi,
-			seashell: /#fff5ee(ff)?(?!\w)/gi,
-			sienna: /#a0522d(ff)?(?!\w)/gi,
-			silver: /#c0c0c0(ff)?(?!\w)/gi,
-			skyblue: /#87ceeb(ff)?(?!\w)/gi,
-			snow: /#fffafa(ff)?(?!\w)/gi,
-			tan: /#d2b48c(ff)?(?!\w)/gi,
-			teal: /#008080(ff)?(?!\w)/gi,
-			thistle: /#d8bfd8(ff)?(?!\w)/gi,
-			tomato: /#ff6347(ff)?(?!\w)/gi,
-			violet: /#ee82ee(ff)?(?!\w)/gi,
-			wheat: /#f5deb3(ff)?(?!\w)/gi,
-			white: /#ffffff(ff)?(?!\w)|#fff(f)?(?!\w)/gi,
-		}
-		for (var key in shorterNames){
-			if (shorterNames[key].test(string)) {
-				string = string.replace(shorterNames[key], key);
-			}
-		}
-		return string;
-	}
-	
-	/**
 	 * Encode some special characters to compresses the payload better
 	 *
 	 * @param {string} match - the matched character
@@ -1628,8 +1691,6 @@
 		if (typeof svgString !== 'string') return;
 		// Strip the Byte-Order Mark if the SVG has one
 		if (svgString.charCodeAt(0) === 0xfeff) { svgString = svgString.slice(1) }
-		//var body = colorCodeToShorterNames(collapseWhitespace(svgString))
-		//.replace(/"/g, "'");
 		return 'data:image/svg+xml,' + dataURIPayload(collapseWhitespace(svgString));
 	}
 
@@ -1675,77 +1736,101 @@
 	};
 	
 	/**
-	 * Cleans up an SVG file as outputted by Illustrator.
+	 * Cleans up an SVG file as outputted by Illustrator. 
+	 * This is a temporary solution until we have a binary to do the job.
 	 *
-	 * TODO: enhance/replace with SVG cleaner binary
-	 *
-	 * @param	{File|str}	f	File to clean
-	 * @param	{Object}	o	Options
-	 * @returns	{Boolean}	true if file could be cleaned
+	 * @param	{File|str}	filePath	File to clean.
+	 * @param	{Object}	o	Options.
+	 * @returns	{Boolean}	true if file could be cleaned.
 	 */
-	function cleanSVG( /*File|str*/ f, o) {
-    	var s = null;
-    	if (f && (f = new File(f)) && (f.encoding = 'UTF8') && f.open('r')) {
-        	s = f.read();
-        	f.close();
-			
-			// fix font names using mapping
-			for (var fontFamily in global_settings['fontMappingForSVG']){
-				var fontFamilyLookup = global_settings['fontMappingForSVG'][fontFamily], newFontString='';
-				if (typeof fontFamilyLookup == 'object') {
-					if (fontFamilyLookup.hasOwnProperty('family')) {
-						newFontString += "font-family='"+fontFamilyLookup['family']+"'";
-					}
-					if (fontFamilyLookup.hasOwnProperty('weight')) {
-						newFontString += " font-weight='"+fontFamilyLookup['weight']+"'";
-					}
-					if (fontFamilyLookup.hasOwnProperty('style')) {
-						newFontString += " font-style='"+fontFamilyLookup['style']+"'";
-					}
-	
-				} else {
-					newFontString = "font-family='"+fontFamilyLookup+"'";
-				}
-				s = s.replace(new RegExp("font-family=\"'"+fontFamily+"'\"","gm"), newFontString);
-			}
+	function runHomebrewCleaner(filePath, o) {
+    	var fileContents = null;
+    	var svgFile = new File(filePath);
+    	if (svgFile && (svgFile.encoding = 'UTF8') && svgFile.open('r')) {
+        	fileContents = svgFile.read();
+        	svgFile.close();
 	
 			// cleanups
 			// remove tabs, newlines
-			s = s.replace( /[\r\n\t]+/gm, '');
+			fileContents = fileContents.replace( /[\r\n\t]+/gm, '');
 			// remove escaped undescores
-			s = s.replace('_x5F',''); //TODO better with regex only in classname
+			fileContents = fileContents.replace('_x5F',''); //TODO better with regex only in classname
 			// remove XML declaration
-			s = s.replace('<?xml version="1.0" encoding="utf-8"?>', '');
+			fileContents = fileContents.replace('<?xml version="1.0" encoding="utf-8"?>', '');
 			// remove comments
-			s = s.replace( /<!--[\s\S]*?-->/gm,'');
+			fileContents = fileContents.replace( /<!--[\s\S]*?-->/gm,'');
 			// remove SVG version
-			s = s.replace(/<svg version="[\d.]*"/, '<svg');
+			fileContents = fileContents.replace(/<svg version="[\d.]*"/, '<svg');
 			// remove empty group defenitions
-			s = s.replace(/<g><\/g>/gm, '');
-			
-			// TODO global group remove end
-			//s = s.replace(/<\/g><\/svg>/gm, '</svg>');
-			//s = s.replace(layerNameRegex, '');
-			
+			fileContents = fileContents.replace(/<g><\/g>/gm, '');
 			// replace HTML IDs with classes
-			s = s.replace(/ id="/gm, ' class="');
-			// replace common color defenitions
-			s = colorCodeToShorterNames(s)
-			// replace quotes (TODO commented lines was a more target approach)
-			// .replace(/\"\''/g, "'")
-			// .replace(/\'\"/g, "'")
-			.replace(/"/g, "'")
-			// fix collateral after quotes replacement
-			.replace(new RegExp("=''","gm"), "='")
-			.replace(/''\s/g, "' ")
+			fileContents = fileContents.replace(/ id="/gm, ' class="');
+			// replace quotes
+			fileContents = fileContents.replace(/"/g, "'")
+				// fix collateral after quotes replacement
+				.replace(new RegExp("=''","gm"), "='")
+				.replace(/''\s/g, "' ")
 			
 			// save
-			f.open('w');
-			f.write(s);
-			f.close();
+			svgFile.open('w');
+			svgFile.write(fileContents);
+			svgFile.close();
     	}
     	return true;
 	};
+
+	/**
+	 * Applies the font mapping to an SVG file.
+	 * 
+	 * @param	{File|str}	filePath	File to clean.
+	 * @returns	{Boolean}	true if file could be cleaned.
+	 */
+	function runFontMappingForSVG(filePath) {
+    	var fileContents = null;
+    	var svgFile = new File(filePath);
+    	if (svgFile && (svgFile.encoding = 'UTF8') && svgFile.open('r')) {
+        	fileContents = svgFile.read();
+        	svgFile.close();
+			
+			fileContents = applyFontMappingForSVG(fileContents, global_settings);
+			
+			// save
+			svgFile.open('w');
+			svgFile.write(fileContents);
+			svgFile.close();
+    	}
+    	return true;
+	};
+
+
+	/**
+	* Apply font names using mapping (fontMappingForSVG)
+	*
+	* @param {string} s - SVG string
+	* @param {object} settings - settings object
+	* @returns {string} - SVG string with fixed font names
+	*/
+	function applyFontMappingForSVG(s, settings) {
+		for (var fontFamily in settings['fontMappingForSVG']){
+			var fontFamilyLookup = settings['fontMappingForSVG'][fontFamily], newFontString='';
+			if (typeof fontFamilyLookup == 'object') {
+				if (fontFamilyLookup.hasOwnProperty('family')) {
+					newFontString += "font-family='"+fontFamilyLookup['family']+"'";
+				}
+				if (fontFamilyLookup.hasOwnProperty('weight')) {
+					newFontString += " font-weight='"+fontFamilyLookup['weight']+"'";
+				}
+				if (fontFamilyLookup.hasOwnProperty('style')) {
+					newFontString += " font-style='"+fontFamilyLookup['style']+"'";
+				}
+
+			} else {
+				newFontString = "font-family='"+fontFamilyLookup+"'";
+			}
+			s = s.replace(new RegExp("font-family=\"'"+fontFamily+"'\"","gm"), newFontString);
+		}
+		return s;
+	}
 	
 	/**
 	 * Gnerate suitable names by using the
