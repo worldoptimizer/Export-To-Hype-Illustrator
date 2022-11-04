@@ -1,13 +1,5 @@
 {
-	"fontMappingForSVG": {
-		"ArialMT": "Arial",
-		"Arial-BoldMT": {
-			"family": "Arial",
-			"weight": "bold",
-		},
-	},
-	
-	"fontMappingForHypeFonts": {
+	"fontMappingHype": {
 		"American Typewriter": "'American Typewriter','Courier New',Courier,monospace",
 		"Andale Mono": "'Andale Mono',Monaco,Monospace",
 		"Apple System Font": "system,-apple-system,'.SFNSDisplay-Regular','Helvetica Neue','Lucida Grande',Helvetica,Arial,Sans-Serif",
@@ -30,8 +22,8 @@
 		"Futura": "Futura,Verdana,sans-serif",
 		"Georgia": "Georgia,Times,'Times New Roman',Serif",
 		"Gill Sans": "'Gill Sans','Lucida Grande',Helvetica,sans-serif",
-		"Helvetica Light": "Helvetica-Light,'Helvetica Light',Helvetica,Arial,Sans-Serif",
-		"Helvetica Neue Light": "HelveticaNeue-Light,'Helvetica Neue Light',Helvetica-Light,HelveticaNeue,'Helvetica Neue',Helvetica,Arial,Sans-Serif",	
+		"Helvetica - Light": "Helvetica-Light,'Helvetica Light',Helvetica,Arial,Sans-Serif",
+		"Helvetica Neue - Light": "HelveticaNeue-Light,'Helvetica Neue Light',Helvetica-Light,HelveticaNeue,'Helvetica Neue',Helvetica,Arial,Sans-Serif",	
 		"Helvetica Neue": "'Helvetica Neue',Arial,Helvetica,Sans-Serif",
 		"Helvetica": "Helvetica,Arial,Sans-Serif",
 		"Hoefler Text": "'Hoefler Text',Georgia,'Times New Roman',serif",
