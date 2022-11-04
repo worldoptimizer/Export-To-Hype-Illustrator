@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2022
- * v1.1.3
+ * v1.1.4
  */
 
 /*
@@ -12,7 +12,7 @@
  * 1.0.2  Visibility option, new font option, quickfix for underscores _x5F
  * 1.0.3  Export of named text layer based values
  * 1.0.4  Fixed exports text
- * 1.0.5  Fixed linefeed, seperate extras, inline SVG, remove SVG Glyph support
+ * 1.0.5  Fixed linefeed, separate extras, inline SVG, remove SVG Glyph support
  * 1.0.6  added new CSS variables mode, fixed SVG Illustrator default group
  * 1.0.7  empty frames and text frame (beta)
  * 1.0.8  Non render blocking base 64 encoding
@@ -22,6 +22,9 @@
  * 1.1.2  Released as Open Source (MIT),
  *        Added Hype Template export type,
  * 1.1.3  Added optimization using Export To Hype Helper.app (SVG cleaner)
+ * 1.1.4  Refactored and cleaned code using writeFile and readFile
+ *        Added FontManager to map fonts visually
+ *
  *
  */
 
@@ -47,64 +50,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.3';
-		
-	/* @const */
-	const _linefeed = "unix"
-	
-	/*
-	Load global settings
-	This code is intended to read a JSON file with the same name as the script, but with a .json extension.
-	For example, our script is named "Export To Hype (Illustrator).jsx", then the JSON file should be named "Export To Hype (Illustrator).json".
-	*/
-	var global_settings = {}
-
-	var global_settings_file = new File($.fileName.replace('.jsx','.json'));
-	if (global_settings_file.exists) {
-		try{
-			global_settings= JSON.parse(read_file(global_settings_file));
-		} catch(e){
-			alert('Global settings JSON file error! '+e)
-		}
-	}
-	
-	/*
-	Load document settings
-	This code is intended to read a JSON file with the same name as the document, but with a .json extension.
-	For example, our document is named "My Document.ai", then the JSON file should be named "My Document.json".
-	*/
-	var document_settings = {}
-	if (activeDocument.path.toString()!=''){
-		var docPath = activeDocument.path;
-		var docName = activeDocument.name.substr(0, activeDocument.name.lastIndexOf('.'));
-		document_settings_file = new File(docPath+ '/'+docName+'.json');
-		if (document_settings_file.exists) {
-			try{
-				document_settings = JSON.parse(read_file(document_settings_file));
-			} catch(e){
-				alert('Documents settings JSON file error! '+e)
-			}
-		}
-	}
-	
-	/*
-	Assign document settings to global settings
-	This code is intended to assign the document settings to the global settings.
-	For example, our document settings has a fontMappingForSVG, then the global settings will
-	be overwritten with the document settings for fontMappingForSVG.
-	*/
-	function assign(o,p,b){
-		if (typeof o != 'object' || typeof p != 'object' ) return;
-		if (typeof o[b] != 'object') o[b] = {};
-		if (typeof p[b] != 'object' ) return;
-		for (var key in p[b]){
-			o[b][key] = p[b][key];
-		}
-	}
-	
-	// map keys or create the if not present
-	assign(global_settings, document_settings, 'fontMappingForSVG' );
-	assign(global_settings, document_settings, 'fontMappingForHypeFonts');
+	const _version = '1.1.4';
 	
 	// DIALOG
 	// ======
@@ -181,6 +127,7 @@
 		radiobutton3.helpTip = "Select this export type to save only the resources (great for updating and relinking layer manually).";
 		radiobutton3.text = "Resources only";
 	
+
 	// OPTIONTABS
 	// ==========
 	var optionTabs = dialog.add("tabbedpanel", undefined, undefined, {name: "optionTabs"}); 
@@ -219,31 +166,31 @@
 		panel1.margins = [5,10,0,5];
 	
 	// Visibility
-	var visibilityRow = panel1.add("group", undefined, {name: "visibilityRow"}); 
-		visibilityRow.orientation = "row"; 
-		visibilityRow.alignChildren = ["left","center"]; 
-		visibilityRow.spacing = 5; 
-		visibilityRow.margins = 0; 
+	var optionsRow = panel1.add("group", undefined, {name: "optionsRow"}); 
+		optionsRow.orientation = "row"; 
+		optionsRow.alignChildren = ["left","center"]; 
+		optionsRow.spacing = 5; 
+		optionsRow.margins = 0; 
 	
-	var visibilitytext1 = visibilityRow.add("statictext", undefined, undefined, {name: "visibilitytext1"}); 
-		visibilitytext1.helpTip = ''; 	
-		visibilitytext1.text = "Export"; 
+	var optionsText1 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText1"}); 
+		optionsText1.helpTip = ''; 	
+		optionsText1.text = "Export"; 
 	
 	var VisibilityMode_array = ["visible", "all"]; 
-	var VisibilityMode = visibilityRow.add("dropdownlist", undefined, undefined, {name: "FontMode", items: VisibilityMode_array}); 
+	var VisibilityMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "FontMode", items: VisibilityMode_array}); 
 		VisibilityMode.helpTip = "Determine top-level layers to be included in exports"
 		VisibilityMode.selection = 0; 
 		VisibilityMode.alignment = ["left","top"];
 	
-	var visibilitytext2 = visibilityRow.add("statictext", undefined, undefined, {name: "visibilitytext2"}); 
-		visibilitytext2.helpTip = ''; 	
-		visibilitytext2.text = "top-level layers in"; 
+	var optionsText2 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText2"}); 
+		optionsText2.helpTip = ''; 	
+		optionsText2.text = "top-level layers in"; 
 	
 	var _EmbedMode_linked = 0;
 	var _EmbedMode_inlined = 1;
 	var _EmbedMode_webfont = 2;
 	var EmbedMode_array = ["linked", "inlined", "webfont"]; 
-	var EmbedMode = visibilityRow.add("dropdownlist", undefined, undefined, {name: "Embed", items: EmbedMode_array}); 
+	var EmbedMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "Embed", items: EmbedMode_array}); 
 		EmbedMode.helpTip = "Determine if SVG are linked or inlined"
 		EmbedMode.selection = 0;
 		EmbedMode.alignment = ["left","top"];
@@ -254,20 +201,20 @@
 		};
 	
 	
-	var visibilitytext3 = visibilityRow.add("statictext", undefined, undefined, {name: "visibilitytext3"}); 
-		visibilitytext3.helpTip = ''; 	
-		visibilitytext3.text = "mode"; 
+	var optionsText3 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText3"}); 
+		optionsText3.helpTip = ''; 	
+		optionsText3.text = "mode"; 
 	
 	
-	var visibilityRow2 = panel1.add("group", undefined, {name: "visibilityRow2"}); 
-		visibilityRow2.orientation = "row"; 
-		visibilityRow2.alignChildren = ["left","center"]; 
-		visibilityRow2.spacing = 5; 
-		visibilityRow2.margins = 0; 
+	var optionsRow2 = panel1.add("group", undefined, {name: "optionsRow2"}); 
+		optionsRow2.orientation = "row"; 
+		optionsRow2.alignChildren = ["left","center"]; 
+		optionsRow2.spacing = 5; 
+		optionsRow2.margins = 0; 
 	
-		var visibilitytext4 = visibilityRow2.add("statictext", undefined, undefined, {name: "visibilitytext4"}); 
-		visibilitytext4.helpTip = ''; 	
-		visibilitytext4.text = "and render font layers"; 
+		var optionsText4 = optionsRow2.add("statictext", undefined, undefined, {name: "optionsText4"}); 
+		optionsText4.helpTip = ''; 	
+		optionsText4.text = "and render font layers"; 
 	
 	// FONTMODE
 	// ========
@@ -286,7 +233,7 @@
 		"not at all (ignore)",
 	//	"as outlined glyphs (depreciated)",
 	];
-	var FontMode = visibilityRow2.add("dropdownlist", undefined, undefined, {name: "FontMode", items: FontMode_array}); 
+	var FontMode = optionsRow2.add("dropdownlist", undefined, undefined, {name: "FontMode", items: FontMode_array}); 
 		FontMode.helpTip = "You can either rely on the browser or your project to deliver the CSS font-family or render the fonts to path outlines and embed them into your SVG files (default). Using paths produces bigger SVG files but is compatible with SVGs as background images."
 		FontMode.selection = 0; 
 		FontMode.alignment = ["left","top"];
@@ -295,7 +242,34 @@
 				EmbedMode.selection=_EmbedMode_webfont;
 			}
 		};
-
+	
+	
+	// FONTMAPPER
+	// ==========
+	var optionsRow3 = panel1.add("group", undefined, {name: "optionsRow3"}); 
+	optionsRow3.orientation = "row"; 
+	optionsRow3.alignChildren = ["left","center"]; 
+	optionsRow3.spacing = 5; 
+	optionsRow3.margins = 0; 
+	
+	var optionsText5 = optionsRow3.add("statictext", undefined, undefined, {name: "optionsText5"}); 
+	optionsText5.helpTip = ''; 	
+	optionsText5.text = "For web or Hype fonts setup the";
+	
+	var fontMapperBtn = optionsRow3.add("button", undefined, undefined, {name: "fontMapperBtn"}); 
+	fontMapperBtn.text = "FontMapper"; 
+	fontMapperBtn.preferredSize.height = 20; 
+	fontMapperBtn.onClick = function() {
+		try{
+			FontMapperDialog();
+		} catch (e){
+			alert(e)
+		}
+	}
+		
+		
+	// DIVIDER
+	// ==========
 	var divider1 = panel1.add ("panel", undefined, undefined, {name: "dividerl"});
 		divider1.alignment = "fill";
 		divider1.preferredSize.height = 1;
@@ -615,6 +589,9 @@
 		var shouldOptimize = o.shouldOptimize;
 		var hypeExtension = saveAsSymbol? 'hypesymbol' : 'hypetemplate';
 		
+		// load settings
+		var settings = loadSettings();
+		
 		// check if we have a doc path (doc is saved)
 		try {
 	 		if (activeDocument.path.toString() == '') throw new Error();
@@ -716,7 +693,7 @@
 			// continue if no content
 			if (!layer.pageItems.length) continue;
 	
-			// continue if layer hidden
+			// continue if layer hidden and user only wants visible layers
 			if (VisibilityMode==0 && !layerVisibility[layerIndex]) continue;
 			
 			// show
@@ -742,23 +719,38 @@
 			// check if we have text frames to consider
 			var hasText = checkIfHasText(layer);
 			
-			// create text layer
+			// create text layer (Hype Font)
 			if (rectangleForText) {
 				for(var i= 0; i < itemsForRectangles.length; ++i){
+					// shorthands
 					var item = itemsForRectangles[i];
+					var textFontStyle = item.textRange.textFont.style;
 					
 					// get layer bounds
 					var lb = getLayerBoundsAsObject(item.geometricBounds);
 					
 					// determine style and weight and remap if needed
-					var _fontStyle = item.textRange.textFont.style.indexOf('Italic')==-1? 'normal' : 'italic';
-					var _fontWeight = item.textRange.textFont.style.indexOf('Bold')==-1? 'normal' : 'bold';
+					var _fontStyle = textFontStyle.toLowerCase().indexOf('italic')==-1? 'normal' : 'italic';
+					var _fontWeight = textFontStyle.toLowerCase().indexOf('bold')==-1? 'normal' : 'bold';
 					var _fontFamily = item.textRange.textFont.family;
-	
-					if (global_settings['fontMappingForHypeFonts'][_fontFamily+' '+item.textRange.textFont.style]){
-						_fontFamily = global_settings['fontMappingForHypeFonts'][_fontFamily+' '+item.textRange.textFont.style];
-					} else if (global_settings['fontMappingForHypeFonts'][_fontFamily]){
-						_fontFamily = global_settings['fontMappingForHypeFonts'][_fontFamily];
+					
+					// check if we have a custom mapping or a Hype mapping
+					var key = fontKey(_fontFamily, textFontStyle)
+					var fontMappingCustom = settings['fontMappingCustom'][key];
+					
+					// lookup if there is a custom mapping 
+					if (fontMappingCustom && fontMappingCustom.family){
+						_fontFamily = fontMappingCustom.family;
+						_fontWeight = fontMappingCustom.bold? 'bold': 'normal';
+						_fontStyle = fontMappingCustom.italic? 'italic': 'normal';
+					
+					// lookup if there is a mapping in default Hype fonts
+					} else if (settings['fontMappingHype'][key]){
+						_fontFamily = settings['fontMappingHype'][key];
+						
+					// lookup if there is a mapping in default Hype fonts by font family alone
+					} else if (settings['fontMappingHype'][_fontFamily]){
+						_fontFamily = settings['fontMappingHype'][_fontFamily];
 					}
 					
 					//check if we also transfer content and clean it if needed
@@ -853,7 +845,9 @@
 				app.activeDocument.exportFile(saveFile, ExportType.SVG, exportOptions);
 	
 				// apply Font Mappings for SVG to file
-				runFontMappingForSVG(saveAsFileName);
+				runFontMappingOnSvgFile(saveAsFileName, $.assign({},
+					settings.fontMappingCustom,
+				));
 
 				// clean SVG Illustrator produces
 				if(shouldOptimize) {
@@ -882,9 +876,9 @@
 				// assume layers are linked (not inlined!)
 				var linked_mode = true;
 				// if globally requested to be inlined … inline!
-				if (EmbedMode==_EmbedMode_inlined)  linked_mode = false;
+				if (EmbedMode==_EmbedMode_inlined) linked_mode = false;
 				// if webfont mode is set … inline!
-				if (EmbedMode==_EmbedMode_webfont && hasText)  linked_mode = false;
+				if (EmbedMode==_EmbedMode_webfont && hasText) linked_mode = false;
 				// if requested by the layer itself directly … inline
 				if (layer.name.indexOf('__inline') !=-1) linked_mode = false;
 				
@@ -928,7 +922,7 @@
 					} else {
 						
 						// read SVG to insert it in innerHTML
-						svg_string = read_file(saveAsFileName);
+						svg_string = readFile(saveAsFileName);
 						if (svg_string) svg_string = svg_string
 							.replace(/&/gm, '&amp;')
 							.replace(/</gm, '&lt;')
@@ -962,7 +956,7 @@
 		}
 		
 		// save plist
-		if (!onlyResources) saveAsPlistFile(hypePath+'/data.plist', dataPlistString({
+		if (!onlyResources) writeFile(hypePath+'/data.plist', dataPlistString({
 			hypeName: docName,
 			saveAsSymbol: saveAsSymbol,
 			width: Math.round(parseInt(docWidth)),
@@ -1045,15 +1039,16 @@
 			
 			// write additional combined if more than one file was produced
 			if (css_files.length>1){
-				combine_files(css_files, docPath + '/'+docName+'-combined.css')
+				combineFiles(css_files, docPath + '/'+docName+'-combined.css')
 			}
 			if (js_files.length>1){
-				combine_files(js_files, docPath + '/'+docName+'-combined.js')
+				combineFiles(js_files, docPath + '/'+docName+'-combined.js')
 			}
 	
 		}
 	}
 
+	
 
 	/**
 	 * SVG Cleaner is an application that cleans SVG files from unnecessary data, such as editor metadata, 
@@ -1106,9 +1101,7 @@
 			if (svgCleanerFile.exists) {
 				// wait 100ms and read the file
 				$.sleep(100);
-				svgCleanerFile.open();
-				minifiedSvg = svgCleanerFile.read();
-				svgCleanerFile.close();
+				minifiedSvg = readFile(svgCleanerFile);
 				break;
 			}
 			
@@ -1119,11 +1112,7 @@
 
 		// if we got a minifed SVG replace original
 		if (minifiedSvg) {
-			svgCleanerFile = new File(filePath);
-			svgCleanerFile.open('w');
-			svgCleanerFile.write(minifiedSvg);
-			svgCleanerFile.close();
-			return true;
+			return writeFile(filePath, minifiedSvg);
 		}
 		return false;
 	}
@@ -1211,217 +1200,322 @@
 	/**
 	 * Reads a file and returns the content
 	 *
-	 * @param {string} filename The filename to read
+	 * @param {String|File} file Path to the file or a File object
 	 * @return {string} The content of the file
 	 */
-	function read_file(filename){
-		if (!filename) return;
-		var content = '', f;
-		if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('r')) {
-			content += f.read();
+	 function readFile(file){
+		if (!file) return null;
+		var content = null, f;
+		if (file instanceof File) {
+			f = file;
+		} else {
+			f = new File(file);
+			f.encoding = 'UTF8';
+		}
+		if (f.open('r')) {
+			content = f.read();
 			f.close();
 		}
 		return content;
 	}
 	
-
 	/**
-	 * Read one or more files and write the content into a new file
+	 * Writes a file
 	 *
-	 * @param {Array} files Array of file to read
-	 * @param {String} new_filename New file to create
-	 */	
-	function combine_files(files, new_filename){
-		var content = '', f;
-		for (var i=0; i < files.length; ++i){
-			var filename = files[i];
-			if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('r')) {
-				content += f.read();
-				f.close();
-			}
+	 * @param {String|File} file Path to the file or a File object
+	 * @param {string} content The content to write
+	 * @return {boolean} True if the file was written
+	 */
+	 function writeFile(file, content){
+		if (!file) return;
+		var f;
+		if (file instanceof File) {
+			f = file;
+		} else {
+			f = new File(file);
+			f.encoding = 'UTF8';
+			f.lineFeed = 'unix';
 		}
-		if ((f = new File(new_filename)) && (f.encoding = 'UTF8') && f.open('w')) {
-			f.lineFeed = _linefeed;
+		if (f.open('w')) {
 			f.write(content);
 			f.close();
+			return true;
 		}
+		return false;
 	}
+	 
+	
+	/**
+	 * This code loads the global settings from a JSON file with the same name as the script, and then loads
+	 * the document settings from a JSON file with the same name as the document. The document settings are
+	 * then assigned to the global settings, overwriting any existing values.
+	 *
+	 * @returns {object} The global settings, with the document settings applied.
+	 */
+	function loadSettings(){
+		// load
+		var globalSettings = loadGlobalSettings();
+		var documentSettings = loadDocumentSettings();
+		// make sure keys exist
+		//if (!globalSettings.fontMappingCustom) globalSettings.fontMappingCustom = {}
+		//if (!documentSettings.fontMappingCustom) documentSettings.fontMappingCustom = {}
+				
+		// assign
+		var settings = {}
+		settings.fontMappingCustom = $.assign({},
+			globalSettings.fontMappingCustom,
+			documentSettings.fontMappingCustom
+		);
+		
+		settings.fontMappingHype = $.assign({},
+			globalSettings.fontMappingHype,
+			documentSettings.fontMappingHype
+		);
+		// return
+		return settings;
+	}
+	
+	
+	
+	/**
+	 * Get the global settings from the JSON file
+	 * depends on the JSON Polyfill
+	 *
+	 * @returns {boolean|*}
+	 */
+	function loadGlobalSettings(){
+		return loadSettingsFromPath($.fileName.replace('.jsx','.json'));
+	}
+	 
+	 /**
+	  * Get the document settings from the JSON file
+	  * depends on the JSON Polyfill and the loadSettingsFromPath function
+	  *
+	  * @returns {boolean|*}
+	  */
+	 function loadDocumentSettings(){
+		if(!activeDocument.path) return {};
+		var docPath = activeDocument.path;
+		var docName = activeDocument.name.substr(0, activeDocument.name.lastIndexOf('.'));
+		document_settings_file = new File(docPath+ '/'+docName+'.json');
+		return loadSettingsFromPath(document_settings_file);
+	}
+	 
+	 /**
+	  * Loads settings from a JSON file
+	  * @param {string} path - Path to the JSON file
+	  * @returns {object} - Settings object
+	  */
+	 function loadSettingsFromPath(path){
+		 var settings_file = new File(path);
+		 if (!settings_file.exists) return {};
+		 
+		 try{
+			 return JSON.parse(readFile(settings_file));
+		 } catch(e){
+			 alert('Settings JSON file error! '+e)
+		 }
+	 }
+	 
+		 
+	 /**
+	  * Saves settings to a JSON file
+	  * @param {string} path - Path to the JSON file
+	  * @param {object} settings - Settings object
+	  */
+	 function saveSettingsToPath(path, settings){
+		var settings_file = new File(path);
+		return writeFile(settings_file, JSON.stringify(settings, null, '\t'));
+	 }
+	 
+	 /**
+	  * Saves the document settings to a JSON file
+	  * depends on the JSON Polyfill and the saveSettingsToPath function
+	  *
+	  * @param {object} settings - Settings object
+	  */
+	 function saveDocumentSettings(settings){
+		 if(!activeDocument.path) return false;
+		 var docPath = activeDocument.path;
+		 var docName = activeDocument.name.substr(0, activeDocument.name.lastIndexOf('.'));
+		 document_settings_file = new File(docPath+ '/'+docName+'.json');
+		 return saveSettingsToPath(document_settings_file, settings);
+	 }
+	 
+	 
+	 function removeDocumentSettings(){
+		if(!activeDocument.path) return false;
+		var docPath = activeDocument.path;
+		var docName = activeDocument.name.substr(0, activeDocument.name.lastIndexOf('.'));
+		document_settings_file = new File(docPath+ '/'+docName+'.json');
+		if (document_settings_file.exists) {
+			document_settings_file.remove();
+			return true;
+		}
+		return false;
+	 }
+	 
+	/**
+	  * Read one or more files and write the content into a new file
+	  *
+	  * @param {Array} files Array of files or file paths to read
+	  * @param {String|File} file Path to the file or a File object
+	  */	
+	 function combineFiles(files, file){
+		 var content = '';
+		 for (var i=0; i < files.length; ++i){
+			 var filename = files[i];
+			 content += readFile(filename);
+		 }
+		 writeFile(file, content);
+	 }
 
 	/**
 	 * Save svg data to css file with background-uri property
 	 *
-	 * @param {String} filename Path to the file
+	 * @param {String|File} file Path to the file or a File object
 	 * @param {Array} entries Array of entries
 	 * @param {String} docName Name of the document
 	 */
-	function saveLayerAsCSS_uri(filename, entries, docName){
-		if (!filename) return;
-		var f;
-		// save base64
-		if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('w')) {
-			f.lineFeed = _linefeed;
-			for (var i=0; i<entries.length; i++) {
-				var className = entries[i].className;
-				var svgdata = entries[i].svgdata;
-				f.writeln(className+" {background: url(\""+svgdata+"\") no-repeat 50% 50%/contain !important;}");
-			}
-			f.close();
-		} else {
-			alert ('Error writing base64 CSS file');
+	function saveLayerAsCSS_uri(file, entries, docName){
+		if (!file || !entries) return;
+		var content = '';
+		for (var i=0; i < entries.length; i++) {
+			var className = entries[i].className;
+			var svgdata = entries[i].svgdata;
+			content += className+" {background: url(\""+svgdata+"\") no-repeat 50% 50%/contain !important;}\n";
 		}
+		return writeFile(file, content);
 	}
+	
+	
 	
 	/**
 	 * Create a CSS file with content
 	 * 
-	 * @param {String} filename Path to the file
+	 * @param {String|File} file Path to the file or a File object
 	 * @param {Array} entries Array of entries
 	 * @param {String} docName Name of the document
 	 */
-	function saveLayerAsCSS_content(filename, entries, docName){
-		if (!filename) return;
-		var f, hasData = false;
+	function saveLayerAsCSS_content(file, entries, docName){
+		if (!file) return;
+		var hasData = false;
 		// check if we have data to process later
 		for (var i=0; i<entries.length; i++) {
 			var vardata = entries[i].vardata;
 			if (countProperties(vardata)) hasData =  true;
 		}
 		if (hasData){
-			if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('w')) {
-				f.lineFeed = _linefeed;
-				var fnc = 'writeln'; // 'write';
-				var t = fnc=='write' ? '': "\t";
-				for (var i=0; i<entries.length; i++) {
-					var varName = entries[i].varName;
-					var vardata = entries[i].vardata;
-					if (countProperties(vardata)){
-						for (var key in vardata){
-							var value = fixContentForCSS(vardata[key].contents);
-							f[fnc]("."+varName+"_"+key+"::before { content : '"+value+"'; white-space: pre-wrap;}");
-						}
+			var content = "";
+			for (var i=0; i<entries.length; i++) {
+				var varName = entries[i].varName;
+				var vardata = entries[i].vardata;
+				if (countProperties(vardata)){
+					for (var key in vardata){
+						var value = fixContentForCSS(vardata[key].contents);
+						content += "."+varName+"_"+key+"::before { content : '"+value+"'; white-space: pre-wrap;}\n";
 					}
 				}
-				f.close();
-			} else {
-				alert ('Error writing content CSS file');
 			}
+			return writeFile(file, content);
+		} else {
+			return false;
 		}
 	}
 	
 	/**
 	 * Save text layers entires as CSS variables
 	 *
-	 * @param {String} filename Path to the file
+	 * @param {String|File} file Path to the file or a File object
 	 * @param {Array} entries Array of entries
 	 * @param {String} docName Name of the document
 	 */
-	function saveLayerAsCSS_variables(filename, entries, docName){
-		if (!filename) return;
-		var f, hasData = false;
+	function saveLayerAsCSS_variables(file, entries, docName){
+		if (!file) return;
+		var hasData = false;
 		// check if we have data to process later
 		for (var i=0; i<entries.length; i++) {
 			var vardata = entries[i].vardata;
 			if (countProperties(vardata)) hasData =  true;
 		}
 		if (hasData){
-			if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('w')) {
-				f.lineFeed = _linefeed;
-				var fnc = 'writeln'; // 'write';
-				var t = fnc=='write' ? '': "\t";
-				f[fnc](":root {");
-				for (var i=0; i<entries.length; i++) {
-					var varName = entries[i].varName;
-					var vardata = entries[i].vardata;
-					if (countProperties(vardata)){
-						for (var key in vardata){
-							var css_variable_name = ("--"+varName+"-"+key).replace('_','-');
-							var value = fixContentForCSS(vardata[key].contents);
-							f[fnc](t+css_variable_name+": '"+value+"';");
-						}
+			var content = ":root {\n";
+			for (var i=0; i<entries.length; i++) {
+				var varName = entries[i].varName;
+				var vardata = entries[i].vardata;
+				if (countProperties(vardata)){
+					for (var key in vardata){
+						var css_variable_name = ("--"+varName+"-"+key).replace('_','-');
+						var value = fixContentForCSS(vardata[key].contents);
+						content += "\t"+css_variable_name+": '"+value+"';\n";
 					}
 				}
-				f[fnc]("}");
-				f[fnc]("");
-				for (var i=0; i<entries.length; i++) {
-					var varName = entries[i].varName;
-					var vardata = entries[i].vardata;
-					if (countProperties(vardata)){
-						for (var key in vardata){
-							var css_variable_name = ("--"+varName+"-"+key).replace('_','-');
-							f[fnc]("."+varName+"_"+key+"::before { content : var("+css_variable_name+"); white-space: pre-wrap;}");
-						}
-					}
-				}
-				f.close();
-			} else {
-				alert ('Error writing content CSS file');
 			}
+			content += "}\n\n";
+			for (var i=0; i<entries.length; i++) {
+				var varName = entries[i].varName;
+				var vardata = entries[i].vardata;
+				if (countProperties(vardata)){
+					for (var key in vardata){
+						var css_variable_name = ("--"+varName+"-"+key).replace('_','-');
+						content += "."+varName+"_"+key+"::before { content : var("+css_variable_name+"); white-space: pre-wrap;}\n";
+					}
+				}
+			}
+			writeFile(file, content);
 		}
 	}
 	
 	/**
 	 * Write a javascript file with the embedded images data encoded in base64 format.
 	 *
-	 * @param {String} filename Path to the file
+	 * @param {String|File} file Path to the file or a File object
 	 * @param {Array} entries Array of entries
 	 * @param {String} docName Name of the document
 	 */
-	function saveLayerAsJS_uri(filename, entries, docName){
-		if (!filename) return;
-		var f;
-		if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('w')) {
-			f.lineFeed = _linefeed;
-			for (var i=0; i<entries.length; i++) {
-				var varName = entries[i].varName;
-				var svgdata = entries[i].svgdata;
-				f.writeln("window['Inline-"+varName+"']=window['"+cleanName(docName)+"_"+varName+"']=\""+svgdata+"\";");
-			}
-			f.close();
-		} else {
-			alert ('Error writing base 64 JS file');
+	function saveLayerAsJS_uri(file, entries, docName){
+		if (!file) return;
+		var content = '';
+		for (var i=0; i<entries.length; i++) {
+			var varName = entries[i].varName;
+			var svgdata = entries[i].svgdata;
+			content += "window['Inline-"+varName+"']=window['"+cleanName(docName)+"_"+varName+"']=\""+svgdata+"\";\n";
 		}
+		return writeFile(file, content);
 	}
+	
 	
 	/**
 	 * Save named text layers entires as JavaScript object variables 
 	 *
-	 * @param {String} filename Path to the file
+	 * @param {String|File} file Path to the file or a File object
 	 * @param {Array} entries Array of entries
 	 * @param {String} docName Name of the document
 	 */
-	function saveLayerAsJS_content(filename, entries, docName){
-		if (!filename) return;
-		var f, hasData = false;
+	function saveLayerAsJS_content(file, entries, docName){
+		if (!file) return;
+		var hasData = false;
 		// check if we have data to process later
 		for (var i=0; i<entries.length; i++) {
 			var vardata = entries[i].vardata;
 			if (countProperties(vardata)) hasData = true;
 		}
-		if (hasData){
-			if ((f = new File(filename)) && (f.encoding = 'UTF8') && f.open('w')) {
-				f.lineFeed = _linefeed;
-				var fnc = 'writeln'; // 'write';
-				var t = fnc=='write' ? '': "\t";
-				//if (fnc=='writeln') f.writeln();
-				f[fnc]("window['Content_"+cleanName(docName)+"'] = {");
-				for (var i=0; i<entries.length; i++) {
-					var varName = entries[i].varName;
-					var vardata = entries[i].vardata;
-					if (countProperties(vardata)){
-						f[fnc](t+"'"+varName+"' : {");
-						for (var key in vardata){
-							var value = fixContentForJS(vardata[key].contents);
-							f[fnc](t+t+"'"+key+"' : '"+value+"', ");
-						}
-						f[fnc](t+"}");
-					}
+		if (!hasData) return;
+		var content = "window['Content_"+cleanName(docName)+"'] = {";
+		for (var i=0; i<entries.length; i++) {
+			var varName = entries[i].varName;
+			var vardata = entries[i].vardata;
+			if (countProperties(vardata)){
+				content += "\n\t'"+varName+"' : {";
+				for (var key in vardata){
+					var value = fixContentForJS(vardata[key].contents);
+					content += "\n\t\t'"+key+"' : '"+value+"', ";
 				}
-				f[fnc]("}");
-				f.close();
-			} else {
-				alert ('Error writing content JS file');
+				content += "\n\t},";
 			}		
 		}
+		content += "\n}";
+		return writeFile(file, content);
 	}
 
 	/**
@@ -1691,20 +1785,15 @@
 		return 'data:image/svg+xml,' + dataURIPayload(collapseWhitespace(svgString));
 	}
 
-    /**
-     * This function converts SVG file to an URL-safe data URI.
-     *
-     * @param {File} f - the SVG file
-     * @returns {string} - the URL-safe data URI
-     */
-	function fileToTinyDataUri(f) {
-    	var s = null;
-    	if (f && (f = new File(f)) && (f.encoding = 'UTF8') && f.open('r')) {
-        	s = f.read();
-        	f.close();
-    	}
-    	return s && svgToTinyDataUri(s);
-	}
+ 	/**
+  	* This function converts SVG file to an URL-safe data URI.
+  	*
+  	* @param {String|File} file Path to the file or a File object
+  	* @returns {string} - the URL-safe data URI
+  	*/
+ 	function fileToTinyDataUri(file) {
+	 	return svgToTinyDataUri(readFile(file));
+ 	}
 	
 	/**
 	 * Trim the leading and/or trailing white space
@@ -1720,32 +1809,24 @@
 	 * Access a local file and convert it to base64
 	 *
 	 * @function fileToBase64
-	 * @param {File|string} f - The file to access.
+	 * @param {String|File} file Path to the file or a File object
 	 * @returns {string} - The file as base64 encoded string.
 	 */
-	function fileToBase64( /*File|str*/ f) {
-    	var s = null;
-    	if (f && (f = new File(f)) && (f.encoding = 'BINARY') && f.open('r')) {
-        	s = f.read();
-        	f.close();
-    	}
-    	return s && ('data:image/svg+xml;base64,'+base64Encode(s));
+	function fileToBase64(file) {
+		var content = readFile(file);
+		return content && ('data:image/svg+xml;base64,'+base64Encode(content));
 	};
 	
 	/**
 	 * Cleans up an SVG file as outputted by Illustrator. 
 	 * This is a temporary solution until we have a binary to do the job.
 	 *
-	 * @param	{File|str}	filePath	File to clean.
-	 * @param	{Object}	o	Options.
-	 * @returns	{Boolean}	true if file could be cleaned.
+	 * @param {String|File} file Path to the file or a File object
+	 * @returns	{Boolean} true if file could be cleaned.
 	 */
-	function runHomebrewCleaner(filePath, o) {
-    	var fileContents = null;
-    	var svgFile = new File(filePath);
-    	if (svgFile && (svgFile.encoding = 'UTF8') && svgFile.open('r')) {
-        	fileContents = svgFile.read();
-        	svgFile.close();
+	function runHomebrewCleaner(file) {
+		if (file) {
+			var fileContents = readFile(file);
 	
 			// cleanups
 			// remove tabs, newlines
@@ -1769,88 +1850,103 @@
 				.replace(/''\s/g, "' ")
 			
 			// save
-			svgFile.open('w');
-			svgFile.write(fileContents);
-			svgFile.close();
-    	}
-    	return true;
+			return writeFile(file, fileContents);
+		}
+		return false;
 	};
 
 	/**
 	 * Applies the font mapping to an SVG file.
 	 * 
-	 * @param	{File|str}	filePath	File to clean.
-	 * @returns	{Boolean}	true if file could be cleaned.
+	 * @param {String|File} file Path to the file or a File object
+	 * @returns	{Boolean} true if file could be mapped.
 	 */
-	function runFontMappingForSVG(filePath) {
-    	var fileContents = null;
-    	var svgFile = new File(filePath);
-    	if (svgFile && (svgFile.encoding = 'UTF8') && svgFile.open('r')) {
-        	fileContents = svgFile.read();
-        	svgFile.close();
-			
-			fileContents = applyFontMappingForSVG(fileContents, global_settings);
-			
-			// save
-			svgFile.open('w');
-			svgFile.write(fileContents);
-			svgFile.close();
+	function runFontMappingOnSvgFile(file, mapping) {
+    	if (file) {
+			var fileContents = readFile(file);
+			if (fileContents!=null){
+				fileContents = applyFontMappingToSvgString(fileContents, mapping);
+				return writeFile(file, fileContents);
+			}
     	}
-    	return true;
+    	return false;
 	};
 
 	/**
 	* Apply font names using mapping (fontMappingForSVG)
 	*
 	* @param {string} svgString - SVG string
-	* @param {object} settings - settings object
+	* @param {object} mapping - mapping object
 	* @returns {string} - SVG string with fixed font names
 	*/
-	function applyFontMappingForSVG(svgString, settings) {
-		for (var fontFamily in settings['fontMappingForSVG']){
-			var fontFamilyLookup = settings['fontMappingForSVG'][fontFamily];
-			var newFontString = '';
-			if (typeof fontFamilyLookup == 'object') {
-				if (fontFamilyLookup.hasOwnProperty('family')) {
-					newFontString += "font-family='"+fontFamilyLookup['family']+"'";
+	function applyFontMappingToSvgString(svgString, mapping) {
+		for (var fontFamily in mapping){
+			var fontMapping = mapping[fontFamily];
+			var fontFamilyMapped = '';
+			if (typeof fontMapping == 'object') {
+				if (fontMapping.family) {
+					//fontFamilyMapped += "font-family=\"'"+fontMapping.family+"'\"";
+					fontFamilyMapped += "font-family='"+fontMapping.family+"'";
 				}
-				if (fontFamilyLookup.hasOwnProperty('weight')) {
-					newFontString += " font-weight='"+fontFamilyLookup['weight']+"'";
+				// convert bold boolean to weight setting if not given
+				if (fontMapping.bold && !fontMapping.weight) {
+					fontMapping.weight = fontMapping.bold? 'bold' : 'normal';
 				}
-				if (fontFamilyLookup.hasOwnProperty('style')) {
-					newFontString += " font-style='"+fontFamilyLookup['style']+"'";
+				// generate weight notation
+				if (fontMapping.weight) {
+					fontFamilyMapped += " font-weight='"+fontMapping.weight+"'";
+				}
+				// convert italic boolean to weight setting if not given
+				if (fontMapping.italic && !fontMapping.style) {
+					fontMapping.style = fontMapping.italic? 'italic' : 'normal';
+				}
+				// generate style notation
+				if (fontMapping.style) {
+					fontFamilyMapped += " font-style='"+fontMapping.style+"'";
 				}
 
 			} else {
-				newFontString = "font-family='"+fontFamilyLookup+"'";
+				fontFamilyMapped = "font-family='"+fontMapping+"'";
 			}
-			svgString = svgString.replace(new RegExp("font-family=\"'"+fontFamily+"'\"","gm"), newFontString);
+			var fontFamilyCompact = fontFamily.split(' ').join('');
+			svgString = svgString.replace(new RegExp("font-family=\"'"+fontFamilyCompact+"'\"","gm"), fontFamilyMapped);	
 		}
 		return svgString;
 	}
+	
+	function booleanOrValue(trueReturn, falseReturn, value) {
+		if (typeof value === 'boolean'){
+			return value? trueReturn : falseReturn;
+		} else {
+			return value;
+		}
+	}
 
 	/**
-	 * Open the URL in the default browser.
+	 * Opens a URL in the default browser
 	 *
-	 * @param {string} url - The URL to open.
+	 * @param {string} url The URL to open
+	 * @return {boolean} True if the URL was opened
 	 */
-	function openURL(url) {
+	function openURL(url){
 		var file = new File(Folder.temp + '/temp.webloc');
-		file.open('w');
-		file.write('<?xml version="1.0" encoding="UTF-8"?>\n');
-		file.write('<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n');
-		file.write('<plist version="1.0">\n');
-		file.write('<dict>\n');
-		file.write('\t<key>URL</key>\n');
-		file.write('\t<string>' + url + '</string>\n');
-		file.write('</dict>\n');
-		file.write('</plist>\n');
-		file.close();
-		file.execute();
+		var content = '<?xml version="1.0" encoding="UTF-8"?>\n';
+		content += '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n';
+		content += '<plist version="1.0">\n';
+		content += '<dict>\n';
+		content += '\t<key>URL</key>\n';
+		content += '\t<string>' + url + '</string>\n';
+		content += '</dict>\n';
+		content += '</plist>\n';
+		if (writeFile(file, content)) {
+			file.execute();
+			return true;
+		}
+		return false;
 	}
 	
 	/**
-	 * Gnerate suitable names by using the
+	 * Generate suitable names by using the
 	 * object name value as input string
 	 *
 	 * @param lname - the name value
@@ -1861,33 +1957,12 @@
 		c = c || '_';
 		return lname.replace(/\s\-\s/g, '_').replace(/\-/g, c).replace(/\s/g, c).replace(/[\-:\/\\*\?\"\<\>\|]/g, '');
 	}
-	
-	
-	/**
-	 * Saves content as a property list file
-	 *
-	 * @param {String} filePath File path to save
-	 * @param {String} content Content to save
-	 * @returns {String | null} Returns null if succeeds, otherwise error message
-	 */
-	function saveAsPlistFile(filePath, content) {
-		var saveFile = new File(filePath);
-		saveFile.encoding = "UTF8";
-		saveFile.open("w");
-		if (saveFile.error) return saveFile.error;
-		saveFile.write(content);
-		if (saveFile.error) return saveFile.error;
-		saveFile.close(); 
-		if (saveFile.error) return saveFile.error;
-		return null;
-	}
 		
 	/**
  	* function returning embeded image
  	*
 	* @returns {String} Returns image string
  	*/
-	
 	function getLogoImage() {
 		var imgString = "%C2%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%C2%AF%00%00%00%3C%08%03%00%00%00'%C2%BE%1A%C2%AA%00%00%00%04gAMA%00%00%C2%B1%C2%8F%0B%C3%BCa%05%00%00%00%01sRGB%00%C2%AE%C3%8E%1C%C3%A9%00%00%00%60PLTE%C3%A9%C3%A9%C3%A9%C3%A2%C3%A1%C3%A2%C2%A5%C2%A4%C2%A3%C3%AD%C2%AE%5B%C2%85%C2%83%C2%82%C3%B79%05%C3%B3%C2%BAiSSS%C3%86%C3%86%C3%87%C3%B0%C3%B6%C3%B6%1C%1C%1C%C3%BD%C3%BE%C3%BE%C3%B8%C2%A21%C3%BC%C2%91%10%40%40Ausq%C3%99%C3%99%C3%99%C3%BES%03%C2%B4%C2%B4%C2%B4a%60%5E%C3%B7%0F%00001%03%05%09%C3%8D%C2%9B_%C3%8F%C3%91%C3%91%C2%A6%C2%8Ap%C2%97%C2%96%C2%95%C3%B0%C2%B2%C2%9A%C3%B4hH%C2%AFg%3C%C3%B7%C3%9C%C3%95%C3%B6%C2%8Dx%07%12%C3%94%C2%80%00%00%07FIDATh%C3%9E%C3%AD%C2%9A%C2%8Bv%C3%A28%0C%C2%86m'4%C3%97b7%06r!%C2%81%C3%B7%7F%C3%8B%C2%95%C3%A4K%C3%AC%C3%9C%C3%A8%C3%8Ct%C2%B7%C2%9DsVd%18%08i%C3%BC%C3%A5%C2%8F%24K%06%C2%96%C3%BD%5D%C3%86%C3%BE%C3%A7%C3%BD%C2%8Fx%C2%B5L%C3%BBC%C2%93%C3%BA%07%C3%B1%C3%AA%C2%BEM%C2%92%C3%A4%C2%8D%1E%C3%BE%C3%BF%C2%B7%C3%B9%C2%81%C3%AF%C3%9A%5E%C3%BE%14%C3%9E%1E!_Z%C2%92%C3%B4%C3%BA'%C3%B0%C3%AA%C2%96%60%13%C3%BAg%C2%B9%C2%93%16%1E%C3%915%C3%90%C3%87%C2%89%C3%BC~%5E%C3%84MfR%40%05_%C3%95%3A%C2%83%7F%C2%B2o%C2%93%C2%85%C3%84%C3%B2%C3%9By%C3%9B%C3%9A%C3%81%C3%A2S%0B%C3%B7%C3%BC%1CX%26%C3%9B%08%C2%B8%C3%BD%C2%AA%C2%A1%C3%93T%C3%BE%16oZ%C2%9B%C3%98%22%C3%A6V%12%C3%AC%C3%95%C2%B0%5E%C3%81%C3%A0%C2%B5%0E%C2%89%C2%93%3E%3AA%C3%8EfK%C2%B3%C2%AC%C3%89%C3%81%C2%88c%C2%B0%C2%AFR%C3%B7i%C3%9E%04%7CCg%C3%B6%C2%A5%C3%8B%C3%B3p%7BX%C3%8A%22Kg%C3%9E%C3%96%C3%84%3Fm%7D%24%C2%AD%25%06f%C3%A9%C3%94G%C2%8F%C3%90%07%C2%BC4L%C2%83%1F(%C3%84Y%0C%C3%9C%C3%98%3F%C2%95%C2%9D%C2%A3c%C2%B9%5E%C2%9FG%1C%C3%B1%C3%AA%C3%84%C3%99%5B%C2%A2%C2%BD%C2%B2%06%C3%96%C3%A2%C2%96%C3%A55k%7D%C3%94%25%C3%A9%01%C2%AFy%0F%0A%0DnG4pn%C2%92'_%C3%AD%C2%8A%C3%8E%C2%83%C3%80%C2%BB%C2%BC%C2%A9%C2%83%7Dk%C2%97%C3%A2%C2%9E%C2%AF%C2%96%C2%B8%2C%C3%8Bs%C3%AB%24%C2%AE%C3%BB%25%2F%C3%8F%C2%8D%C3%A1%C2%8D%C2%94v%C2%BC%C3%9C%C2%A1%18%C3%85%C2%85h%C2%98%C2%BD%12%C3%8B%C3%86%1B%C2%91%7B5%C3%8D%3E%25%C2%84%C3%9D%C2%A73%C2%89'%C2%A4%C3%9B%C3%90y%17%23%C3%9E%C2%BE%C2%B6%C3%80%1B%C2%B8N_%C2%92%C2%B8usI%C2%BB%C3%A4%C3%8D%C3%83%1D%C3%88%C3%85%C2%B5%C3%B4p%C2%A9%C2%93GF%C2%B7%C2%9AK%C3%BFJG%C3%A7%11%C2%B8o%C2%B0!%19J%1B%C3%B0%C3%96%60%13%C2%AA%C2%88v%C2%A5%C3%8D%C3%98%C2%AD%C2%BCy%2B'%3C%0E%0E%3E%C3%A65X%C3%82%C2%B9q0fg%0Fmf%C2%8A%19n%3E%C3%8F%C2%AC%C3%B9%26o%0B%C3%A9%C3%A1%0E6%C2%A4%C2%A9%C3%99%C2%9C%C3%89T%C2%86%06%C3%89%18%0F%03%C2%89%C2%8Fy%09G)'o0%C2%A6%3B%14%C2%BDW%05%17%C2%97%C3%BF%22o%7D%2F%C3%90*g%C3%B4%C2%8E1%C3%9C%0A%7C%C3%A6%5C)%C3%95)%C2%95%C3%A7M%C2%937%C3%B5%C2%9A%17%C3%BD%0E%C3%8C%C2%95%226%C2%9A%C2%9A%C3%A5%C2%98%C3%9C%C3%AC%C3%94%C3%81%C2%87%3E%C2%8B%C3%8C%C2%BC%C3%83%0B%7F%40%5Edb%5Ca~%C3%A1%1D%C3%A7%C3%88%C3%96%C2%A9%C2%AE%C2%83gp%C3%B6%0E)%C3%9D%C2%96%C2%8B%C2%BAn%C3%B5v~p%C2%BB%04%C2%9BC%2B%18%C2%B3%C2%B1%20i%20%C2%A0%C3%B9%C3%B3%C2%90w%C3%A0%5B%7F%1B%C3%B36%1C%C3%A5-%3AT%C2%B1%23Fk%C2%8D%C2%91T%60x%C2%8B%5C%C3%A1%1E%01%1E%C2%9C%1D%C3%B3J%C2%93X%C2%B3%60L8%25q(%7D%C3%84kS%C3%B2%C2%AC%C3%BE%0Eo%2BztPa%C3%81%C2%A2m6%C2%B8%C2%93%19%C3%96%13u%C2%B2%C3%90%C2%97%2Fx%C3%8D%C3%90%3C%C3%94%C3%88%C2%B1%C3%B8%C2%A4%C2%B0%C3%8F%C2%8BW%C2%A7%0Fy%C2%93%C3%BA%C3%BD%0C%C2%A9%C3%A0%C2%AC(%C3%A5%C2%81%C2%BE%24%C2%B4%C2%B5%C2%8E%0C%3E%60%1Ar%C3%84%15%12%C3%84%C3%9A%1F%3A%13%C2%A0Y%0C%C3%98%C2%ACx%3B%C3%A9%03%C3%8A%C2%A9%C3%8FC%C3%BFu%C2%B3%C2%85%3F%C3%BF%5E~h1%C3%99%C3%A6%15%C2%B7JA%C2%94Yc%14y%C2%8C%C3%BC%C2%9BA%1E.!%09%C2%AF%C3%B4%5D%C3%A4%07%C3%9C%C3%93%C2%B08%3F%C3%A0%05%0B%19%C3%84X%C2%98%1F%C2%9A%20nYt%C2%BA%3D%C3%9E%09f%06%5D)%C3%8E-%C2%B1%C3%A14%C3%99%C3%81%C3%90B%C2%8E%C2%A8%C3%A4%C3%ADZ%C3%AA%C2%97%C2%BC)M%01%3E%C3%AE7%C3%86l%C3%A6%0C%C3%90%2C%C3%B3o%13%1D%C2%BD%C3%A7%0FP7%C2%94b%C3%A6-%02%C2%85%C2%9D%C2%BC%5C%159N%26%C3%89%2B%5EE%C2%8A%C3%B9%C3%B2acL%C3%A9%5D%C2%99%C2%8ER%C3%A1y(%19v%2Fx%13%C2%9C%7C%3B%C2%86%C2%BC%18%3C%0E%C2%B6b6%0D%C2%93%C2%BE%C3%B0%19x98%C3%84%C2%9A%C3%97%C3%95%0F%C2%83C%C2%90%C3%861%C2%BB%C3%AD1w%C3%AB%C2%87%C3%9C%25Cq%C3%8C%0B%C3%AE%7B%C3%8D%0C%C2%94%C3%B7%C2%86%C2%8A%1EN%60%C3%94WU%1A%1Cb%C3%9A%C3%A0%0D%C3%AB%40e%1D%C3%92%C3%8F%C2%B4%1B%C2%BC%C2%BA%0Bk%C3%8C%C3%B8%3E%C2%91%C3%80%5C%1F%C3%B2%C2%A2%C3%BB%C3%8Abv%C2%87%C3%82%C3%B0%120%2Bf%07No%C3%97%C3%9B%0B%5E%C3%A1F%C2%A0q%7D%C2%BA%C2%8DyC%C3%A0f%C3%A9Wbsn%5C%C3%B2%C2%96i%11%C2%BA%2F%C3%A1V%C3%B6%C3%89%C2%8A%C3%8C%2B%01%C3%A5%C2%8F%06%C3%9El%C2%97W%C3%BB%C3%BC%C3%A4o%C3%AC%16%C3%AFN%7F%C2%91%C3%BB%00X%C3%95%1E%2B%7D%07%0A%C2%B7%C3%99%1DL%25%C3%B1p%C3%8E%C2%8B%C2%A9%C2%98%09Hh%19%C3%8E%C3%87Z%7F_%C3%BFF%C2%BC%C3%99u%08%C3%B5%C2%AD%2C%C3%B0%C3%A3%C2%B4m%C2%97%C3%A9%C3%BB%C3%BAc%C2%98%C2%8F%C2%A7%C2%B3%C3%A3%0D%C3%83%0D%C2%8C%C2%9F.%3F%C2%8F%C3%B7%C2%9Dxg%C3%BF5%C3%A9%C2%8C%C3%B2%03%1B%03%C3%88%0Fo%C2%A7K%C3%BF%C2%BD%C2%BC%C3%A0%0F%1A%C3%AA%C3%89yz%C2%AB%2C%C3%B1x%C3%99%04~%C3%89%2B%C3%93T%C3%BF%7B%C2%BC5%C2%B6j%C2%8A%05%02%C2%BB%C3%A9m%C2%9Bw%C3%96w%C2%B3%C2%8B%C2%95%C2%8D%C2%A9%1D%C3%85%02%19%C3%97%26%5C%C2%B6%C2%A5%C3%99E%C3%A7~%C2%8F%C2%B4%C3%B3%C2%8DK7*%1F%C3%B4V%03ny!%C2%A1%C2%89%22%C2%A8%1F%1C%C3%B0%C3%B3r%C2%BA%3C%C3%B9%23%C2%B2%11x%C3%93%03%5E1%C2%97%C2%8FC%C2%B6%C3%93%3A%C3%99%5C7%C2%97E%C3%82t%C3%85a%19%C3%8C%C3%93%5D%C3%9E%C2%A9%3C%C2%97%C2%B2Rq%C3%81%C3%83%1C%C2%AF%C3%95%C3%9A%C2%B5K%C3%A0%C3%93%17%C2%B9%C3%8F%2B%C2%B6%C2%96%0Dvx%7D%C3%8B%C3%AC%C2%A7%C3%85h%19B%C3%AE%C3%B1%C2%B6%25t%C3%AE%C2%AAp%05%043%C3%8D%1Bs%C2%BCf%C3%8As%C2%BC%C3%A0%0F'%C3%87%C2%BB%5E%250W%C3%90%C2%89F%C2%B1%60b%C3%9D%C3%A15%C2%BDiPu%C3%B8vPE%C2%8D%C3%A8%C2%BC%C3%80ax%C3%9F%C2%AF8sUa~0%C3%A5%C3%83%1Dx%C3%87%C2%A2%C3%A0%23%C3%9A%C2%93%C2%9EG%C3%A4%C3%95%C3%8B%0A%C3%92%2BI%C2%A7G%C2%A5t%1EV.%3B%C2%BC%C3%92V%19MX%06%C3%A7%C2%9B%C2%8D%C3%9D%1Co%C3%AF%C3%89%C2%BD%C3%87%C3%A6%1D%C3%9A%08l%2F%C3%9D%C2%86%C3%8A%09%C3%83%C3%8B.%60%C2%A7%0F%17q%C2%A7q%C2%97W.V%C2%9D%C3%941%C2%AF)%C3%AEM%C3%8B%2C%C3%97mr%C2%BA%C3%8D%7B%C3%AF%C3%80%0D%0A%C3%AEz%C3%8C%06L%C3%90%C3%96%0C%C3%A0%C2%AB%23%C3%A8%7DB%5E%C2%9F%25.c%C2%B6%C3%87%1B%C2%AE%C3%8E%04M%C3%86.%2FU%C3%B7%04%C2%97%C3%87%C3%87%C2%A4%07%C2%BC-.1%C3%98%0D%3B7%C3%9B%C3%89C%C3%9F%C3%96%20!%C3%B0%C3%9Eg%7B%02%C3%AF%C2%B4%C3%8B%1B2%0E%C2%8B%C2%88%0B%C2%96*%C3%A2%C2%BA%C2%97%C2%8A%C2%9Ft%C2%A3L%C2%93%C2%AB%05%0E%C2%A3o%14%C3%BFA%C3%ABV(%C3%A4%7D%14a%C2%BC%C3%9DOG%C2%BCy%C3%90(%C2%A7%0B%07%C3%8E%C3%A3d%22%C3%BCA%5D%C2%BCL%C2%89%2F%C2%A5w%C2%A6x%C3%81%C3%80%C3%A8%C2%8B%26%C3%8F%C2%9A%2C%C3%83%C2%877%2C%16%1EQ%3E%7B%C2%9E%C2%96%C3%93%C3%9B%C3%AF%C3%B0r%C3%BF%C2%89-%C2%85%C2%87%C2%A8%5D%C3%A9X%C3%A4%C3%A1!o%C3%BF%5E%C2%BF%C2%A3M%C2%B7-%C2%9B%20%19%3C%C3%AF%C3%8F%C2%A7u%C2%86%C3%87%1F%C3%B2%C3%B2%C2%95%C2%BE%C3%86k%7C%5C%C3%A6%C2%AB%C3%8E%23%5E%C3%A00%C2%BC%C3%B0%00%C2%BB%C3%9D%C3%8A%C2%A5%11%C3%AF%C3%85%1AJ%C2%8D%C3%93%C3%85%11%C2%AF%08%C3%BCWl%C3%B8%C2%AF%5D%C2%AA%08%C2%AFD%05%C3%B2F%C3%8B%10%5B%0B%1C%C3%84%5B%C2%9B%C2%AD.o%5B%C2%BC%C2%97'c%C2%90%C2%87)%C2%99%15%C2%86W%C3%AE%C3%B2%0E%C2%BF%C2%98%1F%C3%9Ce-%C3%9B%C3%97%C3%86%C2%95%0F%C2%AB%C3%BC%20%C3%81%17%1C%C3%B0y)%C2%B1%C3%A1%C2%A5y%03xO%1F8%1D%7F%C2%9C%0Ex%C3%A5%7Cs%25%C3%BBD%C3%BE%C3%9D%C3%A2%C3%8D%C2%B3%C3%BD%05%5B%C3%BC%C2%BE%C3%85%C3%A2%22%C3%B0T%C3%86%C3%84%C2%B7%C2%B3%C3%A1%7D%C2%8C%C3%A0%15%1F%1FO3%1D%1F%C3%B0%1AQ%1B%C3%9FS%0E_%C3%8Fk%05%C2%B6%12g%C2%B4%C2%94NK%C3%AB%C2%8Ew%C2%A4%C3%AA%C2%87%C2%82%C2%AD%C2%AA%C3%98j%3A%C2%8EyeT%3F(%C3%BD%25%C2%BC%C3%B3%02%07%7D_hp%5D%C3%9CM%C3%97%20%3F%C2%94%C3%84%1B%C3%A4%C2%B3%C3%87%0B%5E%1B%C3%AF%2CZ%C2%A3%C3%BCS%C3%9E9%04%C3%A9%C3%BB%C3%98%C3%B1%C2%9D%24%26%60%C3%8A%14%C3%93%C3%99%7C%C2%83q%3DO8a%C2%8C%C3%8F%3B'%C3%9E%07%C3%8En%C3%8B%C3%A9x%C3%99u%0F%3B%C2%B8_%C3%86%C2%9B%C3%A9%C3%96%02%07%C3%88%C2%B5%7DC%C3%AD%25%C3%A4%C2%B2%11fb%085*%1F%C2%A6C%C3%9E%C3%9D%C3%BE%C3%A2%C3%8Bx3Hj%7B%C3%A6%5B%C3%A2%C2%8Bo%C2%88%3E%C3%91%1D%C3%BF%C2%8B%C3%BD%C2%9B%C3%BF%C2%BD%C3%866%2Fq%C2%86%C3%AD%1B%C2%90%7F%5B7%1F%C3%BD~GB%0D%C3%9C%C3%8B%3EM%7B9%3Fd%3A%C2%B9Z%12Y%C3%B1%C3%B58%C3%89%1F%C3%81%C2%BBgZ%C3%B6%13%C2%B9%03rO%C3%9F%C3%BC3%C2%9EO%C3%BE%3E%C2%8Ad%C2%9E~%C3%80O%C2%8E%3E%C3%BF%7B.%C3%BD%C2%A3~%1F%C3%B5%C3%B7%C3%BD%C3%BE%C3%AC%C3%AF%C2%B0%7F%00l%130%1E%054%C3%B9%C3%AC%00%00%00%00IEND%C2%AEB%60%C2%82"; 
 		return imgString;
@@ -1926,12 +2001,291 @@
 	l+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Display</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>inline</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Opacity</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+e+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ConstrainProportions</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>YES</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Height</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	h+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Overflow</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>visible</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Width</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+k+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Top</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	f+"</string>\n\t\t\t\t\t\t</dict>"+q+"\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>BackgroundSize</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>100% 100%</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>BackgroundRepeat</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>no-repeat</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>TagName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>div</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>AccessibilityRole</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>img</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ZIndex</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
-	n+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassType</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>Image</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+t+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t</array>\n\t"};
+	n+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassType</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>Image</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+t+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t</array>\n\t"};	
+		
+	/**
+	 * ---------------------------------
+	 * FONT MAPPER DIALOG
+	 * ---------------------------------
+	 */
+	 
+	function fontKey(family, style) {
+		return family + ' - ' + style;
+	}
+
+	function FontMapperDialog(){
+		var documentSettings = loadDocumentSettings();
+		var mapping = documentSettings.fontMappingCustom || {};
+		
+		function buildDialog(selectedIndex){
+			// init the fonts array
+			var fonts = [];
+		
+			// get all text items
+			var items = getTextItems(app.activeDocument);
+		
+			// get the font family and style
+			for(var i = 0; i < items.length; i++){
+				// init the map family and style
+				var item = items[i];
+				var family = item.textRange.textFont.family;
+				var style = item.textRange.textFont.style;
+				// mapping if given
+				var key = fontKey(family, style);
+				var mappedTo = mapping[key] || {};
+				var mapFamily = mappedTo['family'] || item.textRange.textFont.family;
+				var mapBold = mappedTo['bold'] || style.toLowerCase().indexOf('bold')!=-1;
+				var mapItalic = mappedTo['italic'] || style.toLowerCase().indexOf('italic')!=-1;
+				
+				// check if the font is already in the array		
+				var match = false;
+				for(var j = 0; j < fonts.length; j++) {
+					var test = fonts[j];
+					if(test.family === family && test.style === style) {
+						match = true;
+						break;
+					}
+				}
+		
+				// if not, add it
+				if(!match) {
+					var element = {
+						family: family, 
+						style: style, 
+						mapFamily: mapFamily, 
+						mapBold: mapBold, 
+						mapItalic: mapItalic
+					};
+					fonts.push(element);
+				}
+			}
+			
+			// init the dialog
+			var dialogFontManager = new Window('dialog', 'FontMapper');
+			
+			// add the listbox
+			var list = dialogFontManager.add('listbox', undefined);
+			list.preferredSize.width = 300;
+			list.preferredSize.height = 200;
+	
+			// add the input group
+			var inputGroup = dialogFontManager.add("panel", undefined, undefined, {name: "inputGroup"});
+			inputGroup.text = 'Selected font is mapped to ...';
+			inputGroup.orientation = 'row'; 
+			inputGroup.margins = 20;
+			inputGroup.enabled = selectedIndex != null;
+			
+			// add reset button
+			var reset = inputGroup.add('button', undefined, '\u21A9');
+			reset.helpTip = 'Reset the mapping for this font.';
+			reset.preferredSize.width = 20;
+			reset.preferredSize.height = 20;
+			
+			// add input field
+			var edit = inputGroup.add('edittext', undefined, '');
+			edit.preferredSize.width = 150;
+			
+			// add the bold and italic checkboxes
+			var bold = inputGroup.add('checkbox', undefined, 'bold');
+			var italic = inputGroup.add('checkbox', undefined, 'italic');
+			italic.value = false;
+			bold.value = false;
+					
+			// add the buttons
+			var buttonGroup = dialogFontManager.add('group');
+			buttonGroup.alignChildren = ["left","top"];
+			
+			var btn_close = buttonGroup.add('button', undefined, 'Close');
+			var btn_apply = buttonGroup.add('button', undefined, 'Apply');
+			
+			// add all fonts 
+			for(var i = 0; i < fonts.length; i++){
+				var family = fonts[i].family;
+				var style = fonts[i].style;
+				var mapFamily = fonts[i].mapFamily;
+				var modified = isFontModified(fonts[i]);
+				var node = list.add('item', listFontName(fonts[i]));
+				node.mapFamily = mapFamily;
+				node.itemIndex = i;
+			}
+			
+			// on change event for the listbox
+			list.onChange = function(){
+				var item = fonts[list.selection.itemIndex];
+				edit.text = item.mapFamily;
+				bold.value = item.mapBold;
+				italic.value = item.mapItalic;
+				inputGroup.enabled = true;
+			}
+			
+			// on click event for the reset button
+			reset.onClick = function(){
+				var index = list.selection.itemIndex;
+				var key = fontKey(fonts[index].family, fonts[index].style);
+				delete mapping[key];
+				dialogFontManager.close();
+				buildDialog(index);
+			}
+			
+			// on change and changing event for the edit text
+			edit.onChanging = edit.onChange = function(){
+				var font = fonts[list.selection.itemIndex];
+				font.mapFamily = edit.text;
+				list.selection.text = listFontName(font);
+			}
+			
+			// on click event for the bold checkbox
+			bold.onClick = function(){
+				var item = fonts[list.selection.itemIndex];
+				item.mapBold = bold.value;
+			}
+			
+			// on click event for the italic checkbox
+			italic.onClick = function(){
+				var item = fonts[list.selection.itemIndex];
+				item.mapItalic = italic.value;
+			}
+			
+			// on click event for the apply button
+			btn_apply.onClick = function(){
+				var fontMappingCustom = fontMappingToObject(fonts);
+				documentSettings.fontMappingCustom = {}
+				
+				// map items
+				for (var key in fontMappingCustom){
+					documentSettings.fontMappingCustom[key] = fontMappingCustom[key];
+				}
+				
+				// if we have no other branches or remove document settings
+				// else save the document
+				if (countProperties(documentSettings) == 1 && countProperties(fontMappingCustom) == 0 ){
+					removeDocumentSettings();
+				} else {
+					saveDocumentSettings(documentSettings);
+				}
+				
+				dialogFontManager.close();
+			}
+			
+			// on click event for the close button
+			btn_close.onClick = function(){
+				dialogFontManager.close();
+				return null;
+			}
+			
+			// activate the node defined in selectedIndex if given
+			if(selectedIndex) {
+				list.selection = selectedIndex;
+				list.onChange();
+			}
+				
+			// show the dialog
+			dialogFontManager.show();
+		}
+		
+		// initial dialog
+		buildDialog();
+		
+		/**
+		 * Get all text items in the document
+		 *
+		 * @param {Object} parent - the parent item
+		 * @return {Array} items - the items array
+		 */
+		function getTextItems(parent){
+			var items = [];
+			for(var i = 0; i < parent.pageItems.length; i++){
+				var item = parent.pageItems[i];
+				if(item.typename == 'GroupItem'){
+					var childItems = getTextItems(item);
+					items = items.concat(childItems);
+				}else if(item.typename == 'TextFrame'){
+					items.push(item);
+				}
+			}
+			return items;
+		}
+		
+		/**
+		 * Return font name with given font object
+		 *
+		 * @param  {object} font Font object
+		 * @return {string}      Font name with style
+		 */
+		function listFontName(font){
+			var modified = isFontModified(font);
+			return font.family + " (" + font.style + ")" + (modified?' \u27F6 '+font.mapFamily:'');
+		}
+		
+		/**
+		 * Check if the font has been modified
+		 *
+		 * @param {Object} font - the font object
+		 * @return {Boolean} - true if the font has been modified
+		 */
+		function isFontModified(font){
+			var family = font.family;
+			var style = font.style;
+			var mapFamily = font.mapFamily;
+			var mapBold = font.mapBold;
+			var mapItalic = font.mapItalic;
+			if(family != mapFamily || style.toLowerCase().indexOf('bold')!=-1 != mapBold || style.toLowerCase().indexOf('italic')!=-1 != mapItalic){
+				return true;
+			}
+			return false;
+		}
+		
+		/**
+		 * Convert the fonts mapping to a object
+		 *
+		 * @param {Array} fonts - the fonts array
+		 * @return {Object}
+		 */
+		function fontMappingToObject(fonts){
+			var obj = {};
+			for(var i = 0; i < fonts.length; i++){
+				var font = fonts[i];
+				if(isFontModified(font)){
+					var key = fontKey(font.family, font.style);
+					obj[key] = {
+						family: font.mapFamily,
+						bold: font.mapBold,
+						italic: font.mapItalic
+					}
+				}
+			}
+			return obj;
+		}
+	}
 	
 // IIFE end
 })();
 
 function polyfills(){
+	
+	$.assign = function(target, varArgs) {
+		'use strict';
+		if (target == null) { // TypeError if undefined or null
+			throw new TypeError('Cannot convert undefined or null to object');
+		}
+	
+		var to = Object(target);
+	
+		for (var index = 1; index < arguments.length; index++) {
+			var nextSource = arguments[index];
+	
+			if (nextSource != null) { // Skip over if undefined or null
+				for (var nextKey in nextSource) {
+					// Avoid bugs when hasOwnProperty is shadowed
+					if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+						to[nextKey] = nextSource[nextKey];
+					}
+				}
+			}
+		}
+		return to;
+	}
+	
 	/*
 	JSON for ExtendScript
 	*/
