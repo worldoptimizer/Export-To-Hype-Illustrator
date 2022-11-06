@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2022
- * v1.1.4
+ * v1.1.5
  */
 
 /*
@@ -24,7 +24,8 @@
  * 1.1.3  Added optimization using Export To Hype Helper.app (SVG cleaner)
  * 1.1.4  Refactored and cleaned code using writeFile and readFile
  *        Added FontManager to map fonts visually
- *
+ * 1.1.5  Simplified interface by refactoring webfont setting
+ *        Fixed document width and height determination using crop box
  *
  */
 
@@ -43,14 +44,13 @@
 
 //@target illustrator
 
-
 // IIFE begin
-(function () {
+;(function () {
 
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.4';
+	const _version = '1.1.5';
 	
 	// DIALOG
 	// ======
@@ -114,18 +114,18 @@
 		exportType.spacing = 6; 
 		exportType.margins = [0,10,0,0]; 
 		
-	var radiobutton1 = exportType.add("radiobutton", undefined, undefined, {name: "radiobutton1"}); 
-		radiobutton1.text = "Hype Template"; 
-		radiobutton1.helpTip = "Select this export type to save a Hype Template.";
-		radiobutton1.value = true; 
+	var radioButton1 = exportType.add("radiobutton", undefined, undefined, {name: "radioButton1"}); 
+		radioButton1.text = "Hype Template"; 
+		radioButton1.helpTip = "Select this export type to save a Hype Template.";
+		radioButton1.value = true; 
 		
-	var radiobutton2 = exportType.add("radiobutton", undefined, undefined, {name: "radiobutton2"});
-		radiobutton2.helpTip = "Select this export type to save a Hype Symbol.";
-		radiobutton2.text = "Hype Symbol"; 
+	var radioButton2 = exportType.add("radiobutton", undefined, undefined, {name: "radioButton2"});
+		radioButton2.helpTip = "Select this export type to save a Hype Symbol.";
+		radioButton2.text = "Hype Symbol"; 
 		
-	var radiobutton3 = exportType.add("radiobutton", undefined, undefined, {name: "radiobutton3"});
-		radiobutton3.helpTip = "Select this export type to save only the resources (great for updating and relinking layer manually).";
-		radiobutton3.text = "Resources only";
+	var radioButton3 = exportType.add("radiobutton", undefined, undefined, {name: "radioButton3"});
+		radioButton3.helpTip = "Select this export type to save only the resources (great for updating and relinking layer manually).";
+		radioButton3.text = "Resources only";
 	
 
 	// OPTIONTABS
@@ -176,29 +176,24 @@
 		optionsText1.helpTip = ''; 	
 		optionsText1.text = "Export"; 
 	
-	var VisibilityMode_array = ["visible", "all"]; 
-	var VisibilityMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "FontMode", items: VisibilityMode_array}); 
-		VisibilityMode.helpTip = "Determine top-level layers to be included in exports"
-		VisibilityMode.selection = 0; 
-		VisibilityMode.alignment = ["left","top"];
+	var visibilityMode_array = ["visible", "all"]; 
+	var visibilityMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "FontMode", items: visibilityMode_array}); 
+		visibilityMode.helpTip = "Determine top-level layers to be included in exports"
+		visibilityMode.selection = 0; 
+		visibilityMode.alignment = ["left","top"];
 	
 	var optionsText2 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText2"}); 
 		optionsText2.helpTip = ''; 	
 		optionsText2.text = "top-level layers in"; 
 	
-	var _EmbedMode_linked = 0;
-	var _EmbedMode_inlined = 1;
-	var _EmbedMode_webfont = 2;
-	var EmbedMode_array = ["linked", "inlined", "webfont"]; 
-	var EmbedMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "Embed", items: EmbedMode_array}); 
-		EmbedMode.helpTip = "Determine if SVG are linked or inlined"
-		EmbedMode.selection = 0;
-		EmbedMode.alignment = ["left","top"];
-		EmbedMode.onChange = function(){ 
-			if (this.selection.index == _EmbedMode_webfont){
-				FontMode.selection = _FontMode_regular_text_webfont;
-			}
-		};
+	var _embedMode_linked = 0;
+	var _embedMode_inlined = 1;
+	// var _embedMode_webfont = 2;
+	var embedMode_array = ["linked", "inlined"]; //, "webfont"]; 
+	var embedMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "Embed", items: embedMode_array}); 
+		embedMode.helpTip = "Determine if SVG are linked or inlined"
+		embedMode.selection = 0;
+		embedMode.alignment = ["left","top"];
 	
 	
 	var optionsText3 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText3"}); 
@@ -237,12 +232,11 @@
 		FontMode.helpTip = "You can either rely on the browser or your project to deliver the CSS font-family or render the fonts to path outlines and embed them into your SVG files (default). Using paths produces bigger SVG files but is compatible with SVGs as background images."
 		FontMode.selection = 0; 
 		FontMode.alignment = ["left","top"];
+		
 		FontMode.onChange = function(){ 
-			if (this.selection.index == _FontMode_regular_text_webfont && EmbedMode.selection!=_EmbedMode_webfont){
-				EmbedMode.selection=_EmbedMode_webfont;
-			}
+			optionsRow3.enabled = (this.selection.index == _FontMode_regular_text_webfont || this.selection.index == _FontMode_native_text);
 		};
-	
+		
 	
 	// FONTMAPPER
 	// ==========
@@ -250,14 +244,15 @@
 	optionsRow3.orientation = "row"; 
 	optionsRow3.alignChildren = ["left","center"]; 
 	optionsRow3.spacing = 5; 
-	optionsRow3.margins = 0; 
+	optionsRow3.margins = 0;
+	optionsRow3.enabled = false;
 	
 	var optionsText5 = optionsRow3.add("statictext", undefined, undefined, {name: "optionsText5"}); 
 	optionsText5.helpTip = ''; 	
 	optionsText5.text = "For web or Hype fonts setup the";
 	
 	var fontMapperBtn = optionsRow3.add("button", undefined, undefined, {name: "fontMapperBtn"}); 
-	fontMapperBtn.text = "FontMapper"; 
+	fontMapperBtn.text = "Font Mapper"; 
 	fontMapperBtn.preferredSize.height = 20; 
 	fontMapperBtn.onClick = function() {
 		try{
@@ -336,7 +331,7 @@
 		enableAddons.onClick = function() {
 			addonsMode.enabled = !!this.value;
 			dataURItext1.enabled = !!this.value;
-			DataURIMode.enabled = !!this.value;
+			dataURIMode.enabled = !!this.value;
 		}
 	
 	var addonsMode_array = [
@@ -362,14 +357,14 @@
 		dataURItext1.text = "using";
 		dataURItext1.enabled = false;
 	
-	var _DataURIMode_svg = 0;
-	var _DataURIMode_base64 = 1;
-	var DataURIMode_array = ["SVG", "Base64"];
-	var DataURIMode = base64Row.add("dropdownlist", undefined, undefined, {name: "DataURI", items: DataURIMode_array}); 
-		DataURIMode.helpTip = "Determine if SVG is made URI safe or Base 64 encoded (bigger)."
-		DataURIMode.selection = 0;
-		DataURIMode.alignment = ["left","top"];
-		DataURIMode.enabled = false;
+	var _dataURIMode_svg = 0;
+	var _dataURIMode_base64 = 1;
+	var dataURIMode_array = ["SVG", "Base64"];
+	var dataURIMode = base64Row.add("dropdownlist", undefined, undefined, {name: "DataURI", items: dataURIMode_array}); 
+		dataURIMode.helpTip = "Determine if SVG is made URI safe or Base 64 encoded (bigger)."
+		dataURIMode.selection = 0;
+		dataURIMode.alignment = ["left","top"];
+		dataURIMode.enabled = false;
 	
 	var prefixRow = panel2.add("group", undefined, {name: "prefixRow"}); 
     	prefixRow.orientation = "row"; 
@@ -553,9 +548,9 @@
 					shouldOptimize: shouldOptimize.value,
 					prefix: prefix.text,
 					FontMode : FontMode.selection.index,
-					VisibilityMode : VisibilityMode.selection.index,
-					EmbedMode : EmbedMode.selection.index,
-					DataURIMode : DataURIMode.selection.index,
+					visibilityMode : visibilityMode.selection.index,
+					embedMode : embedMode.selection.index,
+					dataURIMode : dataURIMode.selection.index,
 				});
 			} catch (e){
 				alert(e)
@@ -578,14 +573,14 @@
 		var enableAddons = o.enableAddons || false;
 		var prefix = o.prefix || '';
 		var FontMode = o.FontMode || 0;
-		var VisibilityMode = o.VisibilityMode || 0;
+		var visibilityMode = o.visibilityMode || 0;
 		var saveJS_uri = o.saveJS_uri || false;
 		var saveJS_Data = o.saveJS_Data || false;
 		var saveCSS_uri = o.saveCSS_uri || false;
 		var saveCSS_Content = o.saveCSS_Content || false;
 		var saveCSS_Variables = o.saveCSS_Variables || false;
-		var EmbedMode = o.EmbedMode || 0;
-		var DataURIMode = o.DataURIMode || 0;
+		var embedMode = o.embedMode || 0;
+		var dataURIMode = o.dataURIMode || 0;
 		var shouldOptimize = o.shouldOptimize;
 		var hypeExtension = saveAsSymbol? 'hypesymbol' : 'hypetemplate';
 		
@@ -622,8 +617,8 @@
 	
 		// prep more doc vars
 		var docName = activeDocument.name.substr(0, activeDocument.name.lastIndexOf('.'));
-		var docWidth = activeDocument.width;
-		var docHeight = activeDocument.height;
+		var docWidth = Math.round(activeDocument.cropBox[2]) || activeDocument.width;
+		var docHeight = Math.round(Math.abs(activeDocument.cropBox[3])) || activeDocument.height;
 		
 		// check and create folder structure for symbol
 		var hypePath, hypeFolder, resourcesPath, resourcesFolder;
@@ -694,7 +689,7 @@
 			if (!layer.pageItems.length) continue;
 	
 			// continue if layer hidden and user only wants visible layers
-			if (VisibilityMode==0 && !layerVisibility[layerIndex]) continue;
+			if (visibilityMode==0 && !layerVisibility[layerIndex]) continue;
 			
 			// show
 			layer.visible = true;
@@ -876,15 +871,15 @@
 				// assume layers are linked (not inlined!)
 				var linked_mode = true;
 				// if globally requested to be inlined … inline!
-				if (EmbedMode==_EmbedMode_inlined) linked_mode = false;
+				if (embedMode==_embedMode_inlined) linked_mode = false;
 				// if webfont mode is set … inline!
-				if (EmbedMode==_EmbedMode_webfont && hasText) linked_mode = false;
+				if (FontMode==_FontMode_regular_text_webfont && hasText) linked_mode = false;
 				// if requested by the layer itself directly … inline
-				if (layer.name.indexOf('__inline') !=-1) linked_mode = false;
+				if (layer.name.match(/\.inline\s*$/)) linked_mode = false;
 				
 				// encode SVG
 				var svgdata = '';
-				if (DataURIMode==_DataURIMode_base64){
+				if (dataURIMode==_dataURIMode_base64){
 					svgdata = fileToBase64(saveAsFileName)
 				} else {
 					svgdata = fileToTinyDataUri(saveAsFileName)
@@ -1090,8 +1085,8 @@
 		// wait for max 2 seconds for file creation
 		var svgCleanerFileExistsCounter = 0;
 		while (true) {
-			if (svgCleanerFileExistsCounter > 20) {
-				if (confirm("SVG Cleaner failed or is still running!\n\nWait for another 2 seconds?")) {
+			if (svgCleanerFileExistsCounter > 40) {
+				if (confirm("SVG Cleaner failed or is still running!\n\nWait for another 4 seconds?")) {
 					svgCleanerFileExistsCounter = 0;
 				} else {
 					break;
@@ -1950,13 +1945,16 @@
 	 * object name value as input string
 	 *
 	 * @param lname - the name value
-	 * @param c - the character to use to replace the dashes
 	 * @returns the cleaned object name
 	 */
-	function cleanName(lname, c) {
-		c = c || '_';
-		return lname.replace(/\s\-\s/g, '_').replace(/\-/g, c).replace(/\s/g, c).replace(/[\-:\/\\*\?\"\<\>\|]/g, '');
+	function cleanName(lname) {
+		return lname.replace(/^\s+|\s+$/gm, '') // trim spaces
+			.replace(/\s+[\-]+\s+/g, '_') // replace spaces, dashes, spaces with underscore
+			.replace(/\-/g, '_') // replace dash with underscore
+			.replace(/\s/g, '_') // replace space with underscore
+			.replace(/[\\\*\/\?;:"\|<>]/g, '');  // remove all special characters			
 	}
+
 		
 	/**
  	* function returning embeded image
@@ -2061,7 +2059,7 @@
 			}
 			
 			// init the dialog
-			var dialogFontManager = new Window('dialog', 'FontMapper');
+			var dialogFontManager = new Window('dialog', 'Font Mapper');
 			
 			// add the listbox
 			var list = dialogFontManager.add('listbox', undefined);
