@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
- * Copyright Max Ziebell 2022
- * v1.1.5
+ * Copyright Max Ziebell 2023
+ * v1.1.6
  */
 
 /*
@@ -26,6 +26,11 @@
  *        Added FontManager to map fonts visually
  * 1.1.5  Simplified interface by refactoring webfont setting
  *        Fixed document width and height determination using crop box
+ * 1.1.6  Added check if is saved with .ai extension
+ *        Added option to rename duplicate layer names
+ *        Fixed offset when art board isn't at 0,0
+ *        Fixed rounding error when exporting to Hype
+ *        Fixed 1346458189 ('MRAP') bug, zero width/height caused export to fail
  *
  */
 
@@ -50,7 +55,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.5';
+	const _version = '1.1.6';
 	
 	// DIALOG
 	// ======
@@ -527,7 +532,6 @@
 			// "a JavaScript file (Variables)",					// 6
 			// "a JavaScript file (Base64,  Variables)",		// 7
 			// "all available formats"							// 8
-	
 			var am = addonsMode.selection.index;
 			var saveJS_uri = am==5||am==7||am==8;
 			var saveJS_Data = am==6||am==7||am==8;
@@ -553,7 +557,7 @@
 					dataURIMode : dataURIMode.selection.index,
 				});
 			} catch (e){
-				alert(e)
+				alert(e + "\n Error on line: " + e.line)
 			}
 			dialog.close();
 		}
@@ -587,38 +591,47 @@
 		// load settings
 		var settings = loadSettings();
 		
-		// check if we have a doc path (doc is saved)
+		// check if we have a doc path (doc is saved) and it is an AI file
 		try {
 	 		if (activeDocument.path.toString() == '') throw new Error();
+			if (activeDocument.name.split('.').pop().toLowerCase() != 'ai') throw new Error();
 	 		var docPath = activeDocument.path;
 		} catch(e) {
-	 		alert("Export to Hype: You need to save the document before using this exporter!");
+	 		alert("Export to Hype: You need to save the document as an Illustrator file (.ai) before using this exporter!");
 	 		return;
 		}
-	
-		// check for unique names
-		var uniqueNames = {};
-		for (var i = 0; i < activeDocument.layers.length; i++) {
-			var name = activeDocument.layers[i].name;
-			if (uniqueNames.hasOwnProperty(name)) {
-				alert('Export to Hype: The layer name "'+name+'" was at least used twice! This exporter requires unique top-level layer names.');
-				return;
-			} else {
-				uniqueNames[name] = true;
-			}	
+
+		// prep more doc vars
+		var docRef = app.activeDocument;
+		var docWidth = docRef.width;
+		var docHeight = docRef.height;
+		var docName = docRef.name.substr(0, docRef.name.lastIndexOf('.'));
+
+		// loop over top level layers and determine if we have unique names (offer to fix them if needed)
+		var layerNames = {};
+		for (var i = 0; i < docRef.layers.length; i++) {
+			var layer = docRef.layers[i];
+			if (layer.visible) {
+				if (layerNames[layer.name]) {
+					var result = confirm("Export to Hype: The layer '" + layer.name + "' is not unique. Do you want to rename it automatically to '" + layer.name + " " + layerNames[layer.name] + "'? "+"\n"+" Cancel to rename manually!");
+					if (result) {
+						layer.name = layer.name + " " + layerNames[layer.name];
+						layerNames[layer.name] = 1;
+					} else {
+						return;
+					}
+				} else {
+					layerNames[layer.name] = 1;
+				}
+			}
 		}
-	
+		
 		// check if we got a custom save path request
 		if (!!customSave) {
 			var customPath = Folder.selectDialog("Export to Hype: Please, select an output folder");
 			if (!customPath) return;
 			docPath = customPath;
 		}
-	
-		// prep more doc vars
-		var docName = activeDocument.name.substr(0, activeDocument.name.lastIndexOf('.'));
-		var docWidth = Math.round(activeDocument.cropBox[2]) || activeDocument.width;
-		var docHeight = Math.round(Math.abs(activeDocument.cropBox[3])) || activeDocument.height;
 		
 		// check and create folder structure for symbol
 		var hypePath, hypeFolder, resourcesPath, resourcesFolder;
@@ -654,20 +667,19 @@
 		var svgEntries = [];
 		var lid = 2;
 		
-		// store ruler
+		// store ruler and set to pixels
 		var units = app.preferences.getIntegerPreference("rulerType", units);
 		app.preferences.setIntegerPreference("rulerType", 6);
+
+		// make sure we are using the right coordinate system
+		app.coordinateSystem = CoordinateSystem.ARTBOARDCOORDINATESYSTEM;
 	
- 	
-		//app.coordinateSystem = CoordinateSystem.ARTBOARDCOORDINATESYSTEM;
-	
-		// vars
-		var docRef = app.activeDocument;
 		var totalLayers = docRef.layers.length;
 		var layerIndex;
 		var layer;
 		var layerVisibility = []
 		var colorSpace = docRef.documentColorSpace;
+
 	
 		if (docRef.documentColorSpace == DocumentColorSpace.CMYK) {
 			app.executeMenuCommand("doc-color-rgb");
@@ -803,10 +815,31 @@
 				}
 			}
 			if (copyDocNewLayer.pageItems.length) {
-				// trim
+				//  trim copyDoc artboard to content on artboard
 				app.executeMenuCommand('selectall');
-				copyDoc.artboards[0].artboardRect = copyDoc.visibleBounds;
-	
+				try{
+					// try to assign artboardRect array at once
+					copyDoc.artboards[0].artboardRect = copyDoc.visibleBounds;
+				} catch(e){
+					// if that fails, assign each value individually
+					var artboardRect = copyDoc.artboards[0].artboardRect;
+					var visibleBounds = copyDoc.visibleBounds;
+
+					// Check if width and height are at least 1
+					var width = visibleBounds[2] - visibleBounds[0];
+					var height = visibleBounds[1] - visibleBounds[3];
+					if (width < 1) {
+						visibleBounds[2] = visibleBounds[0] + 1;
+					}
+					if (height < 1) {
+						visibleBounds[3] = visibleBounds[3] - 1;
+					}
+
+					// Assign artboardRect array at once
+					artboardRect = [visibleBounds[0], visibleBounds[1], visibleBounds[2], visibleBounds[3]];
+					copyDoc.artboards[0].artboardRect = artboardRect;	
+				}
+				
 				// save
 				// https://gist.github.com/iconifyit/2cbab3f0dd421b6d4bb520bfcf445f0d
 				// http://jongware.mit.edu/iljscs6html/iljscs6/pc_ExportOptionsSVG.html
@@ -822,11 +855,6 @@
 				//exportOptions.cssProperties = SVGCSSPropertyLocation.STYLEATTRIBUTES;
 				//exportOptions.cssProperties = SVGCSSPropertyLocation.STYLEELEMENTS;
 				switch (FontMode) {
-					// case  _FontMode_glyph_paths:
-					// 	exportOptions.fontSubsetting = SVGFontSubsetting.GLYPHSUSED;
-					// 	exportOptions.fontType = SVGFontType.SVGFONT
-					// 	break;
-					
 					case _FontMode_outlined_paths:
 						exportOptions.fontSubsetting = SVGFontSubsetting.GLYPHSUSED;	
 						exportOptions.fontType = SVGFontType.OUTLINEFONT;
@@ -930,8 +958,8 @@
 					name: name,
 					top: lb.top,
 					left: lb.left,
-					height: lb.height,
-					width: lb.width,
+					height: Math.max(1, lb.height),
+					width: Math.max(1, lb.width),
 					originalWidth: originalWidth,
 					originalHeight: originalHeight,
 					zIndex: 1000-lid,
@@ -1670,25 +1698,43 @@
 			layer.visible = false;
 		}
 	}
-	
+
 	/**
 	 * Transforms the bounds array [left, top, right, bottom] into an object with the properties
-	 * left, top, right, bottom, width and height
+	 * left, top, right, bottom, width, height
 	 *
-	 * @param  {Array} 	lb bounds array
-	 * @return {Object} object with the properties left, top, right, bottom, width and height
+	 * @param  {Array}   lb  bounds array [left, top, right, bottom]
+	 * @param  {Number}  decimals  number of decimals to round to (optional)
+	 * @param  {Number}  offsetLeft  left offset modifier (optional, default: 0)
+	 * @param  {Number}  offsetTop  top offset modifier (optional, default: 0)
+	 * @return {Object}  object with the properties left, top, right, bottom, width, height, x and y
 	 */
-	function getLayerBoundsAsObject(lb){
+	function getLayerBoundsAsObject(lb, decimals, offsetLeft, offsetTop) {
+		decimals = decimals || 2;
+		offsetLeft = offsetLeft || 0;
+		offsetTop = offsetTop || 0;
 		return {
-			left: Math.round(lb[0]),
-			top: Math.round(-lb[1]),
-			right:	Math.round(lb[2]),
-			bottom: Math.round(-lb[3]),
-			width: Math.abs(Math.round(lb[2]-lb[0])),
-			height: Math.abs(Math.round(lb[1]-lb[3])),
+			left: toFixed(lb[0] - offsetLeft, decimals),
+			top: toFixed(-lb[1] + offsetTop, decimals),
+			right: toFixed(lb[2] - offsetLeft, decimals),
+			bottom: toFixed(-lb[3] + offsetTop, decimals),
+			width: Math.abs(toFixed(lb[2] - lb[0], decimals)),
+			height: Math.abs(toFixed(lb[1] - lb[3], decimals)),
 		};
 	}
-	
+
+	/**
+	 * Function that returns a number with the specified number of decimal places.
+	 *
+	 * @param  {Number} n number to round
+	 * @param  {Number} decimals number of decimal places (optional, default: 2)
+	 * @return {Number} rounded number
+	 */
+	function toFixed(n, decimals) {
+		decimals = decimals || 2;
+		return n.toFixed(decimals);
+	}
+
 	/**
 	 * base64Encode
 	 * based on https://www.labnol.org/code/19920-encode-decode-base64-javascript
