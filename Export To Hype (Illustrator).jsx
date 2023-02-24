@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.1.6
+ * v1.1.7
  */
 
 /*
@@ -31,7 +31,10 @@
  *        Fixed offset when art board isn't at 0,0
  *        Fixed rounding error when exporting to Hype
  *        Fixed 1346458189 ('MRAP') bug, zero width/height caused export to fail
- *
+ * 1.1.7  Save settings on a document basis in settings file or remove settings if not needed
+ *        Fixed bug where FontManager wouldn't save settings with document based settings file
+ *        Fixed size/position by getting artboard bounds from copy of artboard not original
+ *        Fixed font weight and style mapping on fonts
  */
 
 /* 
@@ -55,7 +58,10 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.6';
+	const _version = '1.1.7';
+
+	// Load settings
+	var localDocumentSettings = loadDocumentSettings();
 	
 	// DIALOG
 	// ======
@@ -122,7 +128,7 @@
 	var radioButton1 = exportType.add("radiobutton", undefined, undefined, {name: "radioButton1"}); 
 		radioButton1.text = "Hype Template"; 
 		radioButton1.helpTip = "Select this export type to save a Hype Template.";
-		radioButton1.value = true; 
+	//	radioButton1.value = true; 
 		
 	var radioButton2 = exportType.add("radiobutton", undefined, undefined, {name: "radioButton2"});
 		radioButton2.helpTip = "Select this export type to save a Hype Symbol.";
@@ -132,6 +138,27 @@
 		radioButton3.helpTip = "Select this export type to save only the resources (great for updating and relinking layer manually).";
 		radioButton3.text = "Resources only";
 	
+
+	// Set the selected radio button based on the localDocumentSettings.exportType
+	if (localDocumentSettings.exportType === "symbol") {
+		radioButton2.value = true;
+	} else if (localDocumentSettings.exportType === "resources") {
+		radioButton3.value = true;
+	} else {
+		// template is the default
+		radioButton1.value = true;
+	}
+
+	// Update the localDocumentSettings.exportType whenever the radio buttons are clicked
+	radioButton1.onClick = function() {
+		delete localDocumentSettings.exportType;
+	}
+	radioButton2.onClick = function() {
+		localDocumentSettings.exportType = "symbol";
+	}
+	radioButton3.onClick = function() {
+		localDocumentSettings.exportType = "resources";
+	}
 
 	// OPTIONTABS
 	// ==========
@@ -184,8 +211,19 @@
 	var visibilityMode_array = ["visible", "all"]; 
 	var visibilityMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "FontMode", items: visibilityMode_array}); 
 		visibilityMode.helpTip = "Determine top-level layers to be included in exports"
-		visibilityMode.selection = 0; 
 		visibilityMode.alignment = ["left","top"];
+
+	// Set the selection based on localDocumentSettings.visibilityMode
+	visibilityMode.selection = localDocumentSettings.visibilityMode || 0;
+
+	// Store the new value in localDocumentSettings.visibilityMode when the user changes the setting
+	visibilityMode.onChange = function() {
+		if (visibilityMode.selection.index != 0) {
+			localDocumentSettings.visibilityMode = visibilityMode.selection.index;
+		} else {
+			delete localDocumentSettings.visibilityMode;
+		}
+	};
 	
 	var optionsText2 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText2"}); 
 		optionsText2.helpTip = ''; 	
@@ -197,10 +235,20 @@
 	var embedMode_array = ["linked", "inlined"]; //, "webfont"]; 
 	var embedMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "Embed", items: embedMode_array}); 
 		embedMode.helpTip = "Determine if SVG are linked or inlined"
-		embedMode.selection = 0;
 		embedMode.alignment = ["left","top"];
 	
-	
+	// Set the selection based on localDocumentSettings.embedMode
+	embedMode.selection = localDocumentSettings.embedMode || 0;
+
+	// Store the new value in localDocumentSettings.embedMode when the user changes the setting
+	embedMode.onChange = function() {
+		if (embedMode.selection.index != 0) {
+			localDocumentSettings.embedMode = embedMode.selection.index;
+		} else {
+			delete localDocumentSettings.embedMode;
+		}
+	};
+
 	var optionsText3 = optionsRow.add("statictext", undefined, undefined, {name: "optionsText3"}); 
 		optionsText3.helpTip = ''; 	
 		optionsText3.text = "mode"; 
@@ -234,12 +282,21 @@
 	//	"as outlined glyphs (depreciated)",
 	];
 	var FontMode = optionsRow2.add("dropdownlist", undefined, undefined, {name: "FontMode", items: FontMode_array}); 
-		FontMode.helpTip = "You can either rely on the browser or your project to deliver the CSS font-family or render the fonts to path outlines and embed them into your SVG files (default). Using paths produces bigger SVG files but is compatible with SVGs as background images."
-		FontMode.selection = 0; 
+		FontMode.helpTip = "You can either rely on the browser or your project to deliver the CSS font-family or render the fonts to path outlines and embed them into your SVG files (default). Using paths produces bigger SVG files but is compatible with SVGs as background images.";
 		FontMode.alignment = ["left","top"];
+
+		// Set the selection based on localDocumentSettings.FontMode
+		FontMode.selection = localDocumentSettings.FontMode || 0;
 		
 		FontMode.onChange = function(){ 
-			optionsRow3.enabled = (this.selection.index == _FontMode_regular_text_webfont || this.selection.index == _FontMode_native_text);
+			//store the new value in localDocumentSettings.FontMode
+			if (FontMode.selection.index != 0) {
+				localDocumentSettings.FontMode = FontMode.selection.index;
+			} else {
+				delete localDocumentSettings.FontMode;
+			}
+			// enable/disable the fontMapperBtn
+			optionsRow3.enabled = (FontMode.selection.index == _FontMode_regular_text_webfont || FontMode.selection.index == _FontMode_native_text);
 		};
 		
 	
@@ -250,7 +307,8 @@
 	optionsRow3.alignChildren = ["left","center"]; 
 	optionsRow3.spacing = 5; 
 	optionsRow3.margins = 0;
-	optionsRow3.enabled = false;
+	// trigger FontMode.onChange to set the enabled state of the fontMapperBtn
+	FontMode.onChange();
 	
 	var optionsText5 = optionsRow3.add("statictext", undefined, undefined, {name: "optionsText5"}); 
 	optionsText5.helpTip = ''; 	
@@ -260,8 +318,8 @@
 	fontMapperBtn.text = "Font Mapper"; 
 	fontMapperBtn.preferredSize.height = 20; 
 	fontMapperBtn.onClick = function() {
-		try{
-			FontMapperDialog();
+		try {
+			FontMapperDialog(localDocumentSettings);
 		} catch (e){
 			alert(e)
 		}
@@ -283,8 +341,17 @@
 		shouldOptimize.helpTip = "Uncheck this if you don't want to use SVG Cleaner on your export (depends on Export To Hype Helper)).";
 		shouldOptimize.text = "Run SVG Cleaner on export (using Export To Hype Helper)";
 		shouldOptimize.alignment = ["left", "top"];
-		shouldOptimize.value = canOptimize;
+		shouldOptimize.value = localDocumentSettings.shouldOptimizIsFalse? false : canOptimize;
 		shouldOptimize.enabled = canOptimize;
+	
+	// Store the new value in localDocumentSettings.shouldOptimize when the user changes the setting
+	shouldOptimize.onClick = function() {
+		if (!shouldOptimize.value) {
+			localDocumentSettings.shouldOptimizIsFalse = true;
+		} else {
+			delete localDocumentSettings.shouldOptimizIsFalse;
+		}
+	};
 	
 	if (!canOptimize){
 		// OPTIMGROUP
@@ -313,6 +380,17 @@
 		customSave.helpTip = "If you check this option Export to Hype will ask you for a folder to save the symbol."; 
 		customSave.text = "Save at custom destination (rather then alongside .AI)"; 
 		customSave.alignment = ["left","top"];
+
+	customSave.value = localDocumentSettings.customSave || false;
+
+	// Store the new value in localDocumentSettings.customSave when the user changes the setting
+	customSave.onClick = function() {
+		if (customSave.value) {
+			localDocumentSettings.customSave = customSave.value;
+		} else {
+			delete localDocumentSettings.customSave;
+		}
+	};
 	
 	// PANEL2
 	// ======
@@ -333,10 +411,18 @@
 		enableAddons.helpTip = "Check this if you want to export URI encoded SVG into a CSS file, targeting your SVG image rectangles by CSS class names. It offers an option to also export data for tools like Hype Data Magic."; 
 		enableAddons.text = "Export"; 
 		enableAddons.alignment = ["left","center"];
+
+		enableAddons.value = localDocumentSettings.enableAddons || false;
+
 		enableAddons.onClick = function() {
-			addonsMode.enabled = !!this.value;
-			dataURItext1.enabled = !!this.value;
-			dataURIMode.enabled = !!this.value;
+			if (enableAddons.value) {
+				localDocumentSettings.enableAddons = true;
+			} else {
+				delete localDocumentSettings.enableAddons;
+			}
+			addonsMode.enabled = !!enableAddons.value;
+			dataURItext1.enabled = !!enableAddons.value;
+			dataURIMode.enabled = !!enableAddons.value;
 		}
 	
 	var addonsMode_array = [
@@ -352,10 +438,18 @@
 	]; 
 	var addonsMode = base64Row.add("dropdownlist", undefined, undefined, {name: "addonsMode", items: addonsMode_array}); 
 		addonsMode.helpTip = ""
-		addonsMode.selection = 0; 
+		addonsMode.selection = localDocumentSettings.addonsMode || 0;
 		addonsMode.alignment = ["left","center"];
 		addonsMode.enabled = false;
 	
+		addonsMode.onChange = function() {
+			if (localDocumentSettings.addonsMode != 0) {
+				localDocumentSettings.addonsMode = addonsMode.selection.index;
+			} else {
+				delete localDocumentSettings.addonsMode;
+			}
+		}
+
 	
 	var dataURItext1 = base64Row.add("statictext", undefined, undefined, {name: "dataURItext1"}); 
 		dataURItext1.helpTip = ''; 	
@@ -367,9 +461,20 @@
 	var dataURIMode_array = ["SVG", "Base64"];
 	var dataURIMode = base64Row.add("dropdownlist", undefined, undefined, {name: "DataURI", items: dataURIMode_array}); 
 		dataURIMode.helpTip = "Determine if SVG is made URI safe or Base 64 encoded (bigger)."
-		dataURIMode.selection = 0;
+		dataURIMode.selection = localDocumentSettings.dataURIMode || 0;
 		dataURIMode.alignment = ["left","top"];
 		dataURIMode.enabled = false;
+
+		dataURIMode.onChange = function() {
+			if (localDocumentSettings.dataURIMode != 0) {
+				localDocumentSettings.dataURIMode = dataURIMode.selection.index;
+			} else {
+				delete localDocumentSettings.dataURIMode;
+			}
+		}
+
+	// trigger the onClick function to set the initial state of the UI
+	enableAddons.onClick();
 	
 	var prefixRow = panel2.add("group", undefined, {name: "prefixRow"}); 
     	prefixRow.orientation = "row"; 
@@ -383,7 +488,16 @@
 	
 	var prefix = prefixRow.add('edittext {properties: {name: "prefix"}}'); 
 		prefix.preferredSize.width = 150;
-    	prefix.text = "";
+    	prefix.text = localDocumentSettings.prefix || "";
+
+		prefix.onChange = function() {
+			prefix.text = prefix.text.replace(/[^a-zA-Z0-9_]/g, '');
+			if (prefix.text) {
+				localDocumentSettings.prefix = prefix.text;
+			} else {
+				delete localDocumentSettings.prefix;
+			}
+		}
 	
 	// GROUP1
 	// ======
@@ -549,13 +663,21 @@
 					customSave: customSave.value,
 					onlyResources: exportType.children[2].value == true,
 					saveAsSymbol: exportType.children[1].value == true,
-					shouldOptimize: shouldOptimize.value,
+					shouldOptimize: shouldOptimize.enabled && shouldOptimize.value,
 					prefix: prefix.text,
 					FontMode : FontMode.selection.index,
 					visibilityMode : visibilityMode.selection.index,
 					embedMode : embedMode.selection.index,
 					dataURIMode : dataURIMode.selection.index,
 				});
+				// Check if there are any keys in localDocumentSettings and save them
+				// Save settings or remove them if there are none
+				if (countProperties(localDocumentSettings)) {
+					saveDocumentSettings(localDocumentSettings);
+				} else {
+					removeDocumentSettings();
+				}
+				
 			} catch (e){
 				alert(e + "\n Error on line: " + e.line)
 			}
@@ -737,14 +859,21 @@
 					var lb = getLayerBoundsAsObject(item.geometricBounds);
 					
 					// determine style and weight and remap if needed
-					var _fontStyle = textFontStyle.toLowerCase().indexOf('italic')==-1? 'normal' : 'italic';
 					var _fontWeight = textFontStyle.toLowerCase().indexOf('bold')==-1? 'normal' : 'bold';
+					var _fontStyle = textFontStyle.toLowerCase().indexOf('italic')==-1? 'normal' : 'italic';
 					var _fontFamily = item.textRange.textFont.family;
 					
 					// check if we have a custom mapping or a Hype mapping
 					var key = fontKey(_fontFamily, textFontStyle)
 					var fontMappingCustom = settings['fontMappingCustom'][key];
-					
+
+					// Hype Quirk: if we have a bold italic font, we need to set the style to bold
+					// also note that we are doing it after the custom mapping lookup to allow for custom mappings 
+					// to lookup and override this based on native text range font style (see also FontMapper)
+					if (_fontStyle == 'normal' && _fontWeight == 'bold') {
+						_fontStyle = 'bold';
+					}
+
 					// lookup if there is a custom mapping 
 					if (fontMappingCustom && fontMappingCustom.family){
 						_fontFamily = fontMappingCustom.family;
@@ -754,12 +883,13 @@
 					// lookup if there is a mapping in default Hype fonts
 					} else if (settings['fontMappingHype'][key]){
 						_fontFamily = settings['fontMappingHype'][key];
-						
+					
 					// lookup if there is a mapping in default Hype fonts by font family alone
 					} else if (settings['fontMappingHype'][_fontFamily]){
 						_fontFamily = settings['fontMappingHype'][_fontFamily];
-					}
 					
+					}
+
 					//check if we also transfer content and clean it if needed
 					var _native = (FontMode == _FontMode_native_text);
 					var _content = _native? item.contents : '';
@@ -800,11 +930,11 @@
 						key: 10+lid,
 						opacity: 100/100,
 						className: _name,
-						fontWeight: _fontStyle,
+						fontWeight: _fontWeight,
 						fontFamily: _fontFamily,
 						textColor: _textColor? RGBToHex(_textColor): '#000',
 						fontSize: Math.floor(item.textRange.size),
-						fontStyle: _fontWeight,
+						fontStyle: _fontStyle,
 						paddingTop: 0, 
 						paddingLeft: 0,
 						paddingBottom: 0,
@@ -815,6 +945,10 @@
 				}
 			}
 			if (copyDocNewLayer.pageItems.length) {
+				// get layer bounds
+				var lb = getLayerBoundsAsObject(copyDoc.visibleBounds);
+
+
 				//  trim copyDoc artboard to content on artboard
 				app.executeMenuCommand('selectall');
 				try{
@@ -883,8 +1017,11 @@
 				var name = layer.name.split('.')[0];
 				var fileName = cleanLayerName+'.svg'; 
 	
-				// get layer bounds
-				var lb = getLayerBoundsAsObject(docRef.visibleBounds);
+				// get layer bounds <-- this is the problem! TODO: fix this
+				// Problem: It gets the bounds of the layer in the original document, not the copyDoc
+				// Solution: Use the bounds of the copyDoc instead, but this needs to happen before the artboard is trimmed
+				// Fix applied above, to be tested! then remove this comment and code below
+				//var lb = getLayerBoundsAsObject(docRef.visibleBounds);
 	
 				// set original width and height
 				var originalWidth = lb.width;
@@ -1732,8 +1869,17 @@
 	 */
 	function toFixed(n, decimals) {
 		decimals = decimals || 2;
+		const factor = Math.pow(10, decimals);
+		const num = Math.round(n * factor) / factor;
+		return num;
+	}
+
+	/*
+	function toFixed(n, decimals) {
+		decimals = decimals || 2;
 		return n.toFixed(decimals);
 	}
+	*/
 
 	/**
 	 * base64Encode
@@ -2057,8 +2203,8 @@
 		return family + ' - ' + style;
 	}
 
-	function FontMapperDialog(){
-		var documentSettings = loadDocumentSettings();
+	function FontMapperDialog(localDocumentSettings){
+		var documentSettings = localDocumentSettings || loadDocumentSettings();
 		var mapping = documentSettings.fontMappingCustom || {};
 		
 		function buildDialog(selectedIndex){
@@ -2195,26 +2341,36 @@
 				var fontMappingCustom = fontMappingToObject(fonts);
 				documentSettings.fontMappingCustom = {}
 				
-				// map items
-				for (var key in fontMappingCustom){
-					documentSettings.fontMappingCustom[key] = fontMappingCustom[key];
+
+				if (countProperties(fontMappingCustom) == 0) {
+					delete documentSettings.fontMappingCustom;
+				} else {
+					// map items
+					for (var key in fontMappingCustom){
+						documentSettings.fontMappingCustom[key] = fontMappingCustom[key];
+					}
 				}
 				
 				// if we have no other branches or remove document settings
-				// else save the document
-				if (countProperties(documentSettings) == 1 && countProperties(fontMappingCustom) == 0 ){
-					removeDocumentSettings();
-				} else {
-					saveDocumentSettings(documentSettings);
+				// else save the document, but only when localDocumentSettings wasn't set
+				// this is probably not needed anymore as we don't call the dialog when localDocumentSettings is set
+				/*
+				if (!localDocumentSettings) {
+					if (countProperties(documentSettings) == 1 && countProperties(fontMappingCustom) == 0 ){
+						removeDocumentSettings();
+					} else {
+						saveDocumentSettings(documentSettings);
+					}
 				}
+				*/
 				
-				dialogFontManager.close();
+				dialogFontManager.close(1);
 			}
 			
 			// on click event for the close button
 			btn_close.onClick = function(){
 				dialogFontManager.close();
-				return null;
+				return null; // <-- this is probably not needed anymore
 			}
 			
 			// activate the node defined in selectedIndex if given
@@ -2224,7 +2380,8 @@
 			}
 				
 			// show the dialog
-			dialogFontManager.show();
+			var closeValue = dialogFontManager.show();
+			return closeValue;
 		}
 		
 		// initial dialog
