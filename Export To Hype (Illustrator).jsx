@@ -1879,9 +1879,9 @@
 	function getLayerBoundsAsObjectMaxed(lb) {
 		// Extract the left, top, right, and bottom values from the array
 		const left = lb[0];
-		const top = -lb[3];
+		const top = -lb[1];
 		const right = lb[2];
-		const bottom = -lb[1];
+		const bottom = -lb[3];
 
 		// Calculate the width and height of the rectangle
 		const width = right - left;
@@ -1904,9 +1904,9 @@
 		// Return the new rectangle as an object with the new left, top, right, bottom, width, and height properties
 		return {
 			left: newLeft,
-			top: newBottom,
+			top: newTop,
 			right: newRight,
-			bottom: newTop,
+			bottom: newBottom,
 			width: newWidth,
 			height: newHeight,
 		};
