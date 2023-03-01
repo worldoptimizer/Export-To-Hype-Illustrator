@@ -1869,49 +1869,46 @@
 	}
 
 	/**
-	 * Transforms the bounds array [left, top, right, bottom] into an object with the properties
-	 * left, top, right, bottom, width, height
-	 *
-	 * @param  {Array}   lb  bounds array [left, top, right, bottom]
-	 * @param  {Number}  decimals  number of decimals to round to (optional)
-	 * @param  {Number}  offsetLeft  left offset modifier (optional, default: 0)
-	 * @param  {Number}  offsetTop  top offset modifier (optional, default: 0)
-	 * @return {Object}  object with the properties left, top, right, bottom, width, height, x and y
-	 */
-	function getLayerBoundsAsObject(lb, decimals) {
-		decimals = decimals || 2;
-		return {
-			left: toFixed(lb[0], decimals),
-			top: toFixed(-lb[1], decimals),
-			right: toFixed(lb[2], decimals),
-			bottom: toFixed(-lb[3], decimals),
-			width: Math.abs(toFixed(lb[2] - lb[0], decimals)),
-			height: Math.abs(toFixed(lb[1] - lb[3], decimals)),
-		};
-	}
-
-	/**
 	* Transforms the bounds array [left, top, right, bottom] into an object with the properties
 	* left, top, right, bottom, width, height
 	* BUT maximize area to next integer (meaning to round down left and top, and round up right and bottom)
 	*
 	* @param  {Array}   lb  bounds array [left, top, right, bottom]
-	* @param  {Number}  offsetLeft  left offset modifier (optional, default: 0)
-	* @param  {Number}  offsetTop  top offset modifier (optional, default: 0)
 	* @return {Object}  object with the properties left, top, right, bottom, width, height, x and y
 	*/
 	function getLayerBoundsAsObjectMaxed(lb) {
-		var left = Math.floor(lb[0]);
-		var top = -Math.floor(lb[1]);
-		var right = Math.ceil(lb[2]);
-		var bottom = -Math.ceil(lb[3]);
+		// Extract the left, top, right, and bottom values from the array
+		const left = lb[0];
+		const top = -lb[3];
+		const right = lb[2];
+		const bottom = -lb[1];
+
+		// Calculate the width and height of the rectangle
+		const width = right - left;
+		const height = bottom - top;
+
+		// Determine the center point of the rectangle
+		const centerX = (left + right) / 2;
+		const centerY = (top + bottom) / 2;
+
+		// Determine the new left, top, right, and bottom points by snapping them to the nearest even number
+		const newLeft = Math.floor(centerX - (width / 2)) % 2 === 0 ? Math.floor(centerX - (width / 2)) : Math.floor(centerX - (width / 2)) + 1;
+		const newTop = Math.floor(centerY - (height / 2)) % 2 === 0 ? Math.floor(centerY - (height / 2)) : Math.floor(centerY - (height / 2)) + 1;
+		const newRight = Math.ceil(centerX + (width / 2)) % 2 === 0 ? Math.ceil(centerX + (width / 2)) : Math.ceil(centerX + (width / 2)) - 1;
+		const newBottom = Math.ceil(centerY + (height / 2)) % 2 === 0 ? Math.ceil(centerY + (height / 2)) : Math.ceil(centerY + (height / 2)) - 1;
+
+		// Calculate the new width and height of the rectangle
+		const newWidth = newRight - newLeft;
+		const newHeight = newBottom - newTop;
+
+		// Return the new rectangle as an object with the new left, top, right, bottom, width, and height properties
 		return {
-			left: left,
-			top: top,
-			right: right,
-			bottom: bottom,
-			width: Math.abs(right - left),
-			height: Math.abs(bottom - top),
+			left: newLeft,
+			top: newBottom,
+			right: newRight,
+			bottom: newTop,
+			width: newWidth,
+			height: newHeight,
 		};
 	}
 
