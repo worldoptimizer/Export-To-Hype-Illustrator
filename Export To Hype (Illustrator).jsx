@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.1.7
+ * v1.1.8
  */
 
 /*
@@ -35,6 +35,9 @@
  *        Fixed bug where FontManager wouldn't save settings with document based settings file
  *        Fixed size/position by getting artboard bounds from copy of artboard not original
  *        Fixed font weight and style mapping on fonts
+ * 1.1.8  Hype native fonts are now named like the layer and get the same class name
+ *        FontManager displays only changed fonts allowing to set any font name
+ *        Added a better rounding approach, see getLayerBoundsAsObjectMaxed
  */
 
 /* 
@@ -58,7 +61,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.7';
+	const _version = '1.1.8';
 
 	// Load settings
 	var localDocumentSettings = loadDocumentSettings();
@@ -653,6 +656,14 @@
 			var saveCSS_Content = am==1||am==2||am==8;
 			var saveCSS_Variables = am==3||am==4||am==8;
 			try{
+				// Save settings or remove them if there are none
+				if (countProperties(localDocumentSettings)) {
+					saveDocumentSettings(localDocumentSettings);
+				} else {
+					removeDocumentSettings();
+				}
+
+				// Export the document
 				HypeLayerExporter({
 					enableAddons: enableAddons.value,
 					saveJS_uri: saveJS_uri,
@@ -670,13 +681,7 @@
 					embedMode : embedMode.selection.index,
 					dataURIMode : dataURIMode.selection.index,
 				});
-				// Check if there are any keys in localDocumentSettings and save them
-				// Save settings or remove them if there are none
-				if (countProperties(localDocumentSettings)) {
-					saveDocumentSettings(localDocumentSettings);
-				} else {
-					removeDocumentSettings();
-				}
+				
 				
 			} catch (e){
 				alert(e + "\n Error on line: " + e.line)
@@ -712,7 +717,7 @@
 		
 		// load settings
 		var settings = loadSettings();
-		
+
 		// check if we have a doc path (doc is saved) and it is an AI file
 		try {
 	 		if (activeDocument.path.toString() == '') throw new Error();
@@ -754,7 +759,7 @@
 			if (!customPath) return;
 			docPath = customPath;
 		}
-		
+
 		// check and create folder structure for symbol
 		var hypePath, hypeFolder, resourcesPath, resourcesFolder;
 		try {
@@ -851,14 +856,15 @@
 			// create text layer (Hype Font)
 			if (rectangleForText) {
 				for(var i= 0; i < itemsForRectangles.length; ++i){
+					
 					// shorthands
 					var item = itemsForRectangles[i];
-					var textFontStyle = item.textRange.textFont.style;
 					
 					// get layer bounds
-					var lb = getLayerBoundsAsObject(item.geometricBounds);
-					
+					var lb = getLayerBoundsAsObjectMaxed(item.geometricBounds);
+
 					// determine style and weight and remap if needed
+					var textFontStyle = item.textRange.textFont.style;
 					var _fontWeight = textFontStyle.toLowerCase().indexOf('bold')==-1? 'normal' : 'bold';
 					var _fontStyle = textFontStyle.toLowerCase().indexOf('italic')==-1? 'normal' : 'italic';
 					var _fontFamily = item.textRange.textFont.family;
@@ -866,13 +872,6 @@
 					// check if we have a custom mapping or a Hype mapping
 					var key = fontKey(_fontFamily, textFontStyle)
 					var fontMappingCustom = settings['fontMappingCustom'][key];
-
-					// Hype Quirk: if we have a bold italic font, we need to set the style to bold
-					// also note that we are doing it after the custom mapping lookup to allow for custom mappings 
-					// to lookup and override this based on native text range font style (see also FontMapper)
-					if (_fontStyle == 'normal' && _fontWeight == 'bold') {
-						_fontStyle = 'bold';
-					}
 
 					// lookup if there is a custom mapping 
 					if (fontMappingCustom && fontMappingCustom.family){
@@ -890,6 +889,13 @@
 					
 					}
 
+					// Hype Quirk: if we have a bold italic font, we need to set the style to bold
+					// also note that we are doing it after the custom mapping lookup to allow for custom mappings 
+					// to lookup and override this based on native text range font style (see also FontMapper)
+					if (_fontStyle == 'normal' && _fontWeight == 'bold') {
+						_fontStyle = 'bold';
+					}
+
 					//check if we also transfer content and clean it if needed
 					var _native = (FontMode == _FontMode_native_text);
 					var _content = _native? item.contents : '';
@@ -898,29 +904,53 @@
 						.replace(/&/gm, '&amp;')
 						.replace(/</gm, '&lt;')
 						.replace(/>/gm, '&gt;');
-					var _name = cleanLayerName+"_"+(item.name? item.name : lid);
+
+					var _className = cleanLayerName+"_"+(item.name? cleanKey(item.name) : lid);
+					// prep name (remove inline notation from name)
+					var _name = layer.name.split('.')[0]+(item.name? ' ('+item.name+')': '');
 					
-					// shouldn't be necessary as we switched the entire original document to RGB
-					// but it seems like one can have single elements with CMYK and other color spaces
+					// Get the text color, note that each 
 					var _textColor = item.textRange.fillColor;
+
+					if (_textColor.typename == "SpotColor") {
+						// create a new RGB color based on the spot color values
+						var _rgbColor = new RGBColor();
+						_rgbColor.red = _textColor.spot.color.red;
+						_rgbColor.green = _textColor.spot.color.green;
+						_rgbColor.blue = _textColor.spot.color.blue;
+
+						// update the _textColor object with the new RGB color values
+						_textColor = _rgbColor;
+					}
+
 					// check if it is a CMYK and convert to RGB
-					if (_textColor.typename == "CMYKColor"){ //docRef.documentColorSpace == DocumentColorSpace.CMYK || ){
+					if (_textColor.typename == "CMYKColor") {
 						var c = [_textColor.cyan, _textColor.magenta, _textColor.yellow, _textColor.black];
 						c = app.convertSampleColor(ImageColorSpace.CMYK, c, ImageColorSpace.RGB, ColorConvertPurpose.defaultpurpose);
-						_textColor = new RGBColor();
-						_textColor.red = c[0];
-						_textColor.green = c[1];
-						_textColor.blue = c[2];
-					// if it's not a RGB at this point default to black
-					} else if (_textColor.typename != "RGBColor"){
-						_textColor = new RGBColor();
-						_textColor.red = 0;
-						_textColor.green = 0;
-						_textColor.blue = 0;
+
+						var _rgbColor = new RGBColor();
+						_rgbColor.red = c[0];
+						_rgbColor.green = c[1];
+						_rgbColor.blue =c[2];
+
+						// update the _textColor object with the new RGB color values
+						_textColor = _rgbColor;
 					}
-	
+
+					// if it's not a RGB at this point default to black
+					if (_textColor.typename != "RGBColor") {
+					var _rgbColor = new RGBColor();
+						_rgbColor.red = 0;
+						_rgbColor.green =0;
+						_rgbColor.blue =0;
+
+						// update the _textColor object with the new RGB color values
+						_textColor = _rgbColor;
+					}
+
+					// add the text element to the list of elements
 					elementsStr += textElementPlistString({
-						name: _name,
+						name: _name, // 'Text', <-- old varation of naming it by type
 						top: lb.top,
 						left: lb.left,
 						height: lb.height,
@@ -929,7 +959,7 @@
 						zIndex: 1000-lid,
 						key: 10+lid,
 						opacity: 100/100,
-						className: _name,
+						className: _className,
 						fontWeight: _fontWeight,
 						fontFamily: _fontFamily,
 						textColor: _textColor? RGBToHex(_textColor): '#000',
@@ -941,53 +971,49 @@
 						paddingRight: 0,
 						innerHTML: _content,
 					});
+
+					// increment the layer id
 					lid++;
 				}
 			}
 			if (copyDocNewLayer.pageItems.length) {
-				// get layer bounds
-				var lb = getLayerBoundsAsObject(copyDoc.visibleBounds);
-
-
 				//  trim copyDoc artboard to content on artboard
 				app.executeMenuCommand('selectall');
+
+				// get layer bounds
+				var lb = getLayerBoundsAsObjectMaxed(copyDoc.visibleBounds);
+
 				try{
 					// try to assign artboardRect array at once
-					copyDoc.artboards[0].artboardRect = copyDoc.visibleBounds;
+					copyDoc.artboards[0].artboardRect = [lb.left, -lb.top, lb.right, -lb.bottom];
 				} catch(e){
-					// if that fails, assign each value individually
-					var artboardRect = copyDoc.artboards[0].artboardRect;
-					var visibleBounds = copyDoc.visibleBounds;
-
-					// Check if width and height are at least 1
-					var width = visibleBounds[2] - visibleBounds[0];
-					var height = visibleBounds[1] - visibleBounds[3];
-					if (width < 1) {
-						visibleBounds[2] = visibleBounds[0] + 1;
-					}
-					if (height < 1) {
-						visibleBounds[3] = visibleBounds[3] - 1;
-					}
-
-					// Assign artboardRect array at once
-					artboardRect = [visibleBounds[0], visibleBounds[1], visibleBounds[2], visibleBounds[3]];
-					copyDoc.artboards[0].artboardRect = artboardRect;	
+					// if that fails, do it manually
+					var ar = copyDoc.artboards[0].artboardRect, vb = copyDoc.visibleBounds;
+					if (vb[2]-vb[0] < 1) vb[2] = vb[0]+1;
+					if (vb[1]-vb[3] < 1) vb[3] = vb[1]-1;
+					ar = [vb[0], vb[1], vb[2], vb[3]];
+					copyDoc.artboards[0].artboardRect = ar;
 				}
-				
+
 				// save
 				// https://gist.github.com/iconifyit/2cbab3f0dd421b6d4bb520bfcf445f0d
 				// http://jongware.mit.edu/iljscs6html/iljscs6/pc_ExportOptionsSVG.html
 				var saveAsFileName = resourcesFolder.fullName + "/" + cleanLayerName +'.svg';
 				var exportOptions = new ExportOptionsSVG();
 				var saveFile = new File(saveAsFileName);
-				exportOptions.DTD = SVGDTDVersion.SVG1_1; //SVGDTDVersion.SVG1_0;
-				exportOptions.sVGAutoKerning = true
-				//exportOptions.embedRasterImages = true;
+				//exportOptions.DTD = SVGDTDVersion.SVG1_1;
+				exportOptions.DTD = SVGDTDVersion.SVG1_0;
+				
 				exportOptions.coordinatePrecision = 2;
 				exportOptions.documentEncoding = SVGDocumentEncoding.UTF8;
 				exportOptions.cssProperties = SVGCSSPropertyLocation.PRESENTATIONATTRIBUTES;
-				//exportOptions.cssProperties = SVGCSSPropertyLocation.STYLEATTRIBUTES;
-				//exportOptions.cssProperties = SVGCSSPropertyLocation.STYLEELEMENTS;
+				
+				// I am still evaluating the best default settings for this
+				exportOptions.optimizeForSVGViewer = true;
+				exportOptions.embedAllFonts = false;
+				//exportOptions.sVGAutoKerning = true
+				//exportOptions.embedRasterImages = true;
+					
 				switch (FontMode) {
 					case _FontMode_outlined_paths:
 						exportOptions.fontSubsetting = SVGFontSubsetting.GLYPHSUSED;	
@@ -997,11 +1023,16 @@
 					case _FontMode_regular_text_webfont:
 						exportOptions.fontSubsetting = SVGFontSubsetting.None;
 						break;
+
+					default:
+						exportOptions.fontSubsetting = SVGFontSubsetting.None;
+						break;
 				}
-				exportOptions.typename = ExportType.SVG;
+
+				// export
 				app.activeDocument.exportFile(saveFile, ExportType.SVG, exportOptions);
 	
-				// apply Font Mappings for SVG to file
+				// apply Font mappings to SVG to file (text replacement)
 				runFontMappingOnSvgFile(saveAsFileName, $.assign({},
 					settings.fontMappingCustom,
 				));
@@ -1013,15 +1044,9 @@
 					runHomebrewCleaner(saveAsFileName);
 				}
 	
-				// prep name
+				// prep name (remove inline notation from name)
 				var name = layer.name.split('.')[0];
-				var fileName = cleanLayerName+'.svg'; 
-	
-				// get layer bounds <-- this is the problem! TODO: fix this
-				// Problem: It gets the bounds of the layer in the original document, not the copyDoc
-				// Solution: Use the bounds of the copyDoc instead, but this needs to happen before the artboard is trimmed
-				// Fix applied above, to be tested! then remove this comment and code below
-				//var lb = getLayerBoundsAsObject(docRef.visibleBounds);
+				var fileName = cleanLayerName+'.svg';
 	
 				// set original width and height
 				var originalWidth = lb.width;
@@ -1031,8 +1056,10 @@
 				var svg_string = '';
 	
 				// fontmode empty
-				var keep_layer_with_text_empty = FontMode==_FontMode_empty_rectangle && hasText;
-	
+				// this seems like we don't need this anymore, since we can just use the layer bounds)
+				// var keep_layer_with_text_empty = FontMode==_FontMode_empty_rectangle && hasText;
+				// tracked as #change 1.1.8#1 to be removed in the future
+				
 				// assume layers are linked (not inlined!)
 				var linked_mode = true;
 				// if globally requested to be inlined … inline!
@@ -1058,7 +1085,7 @@
 					vardata : extractTemplateVars(layer),
 				});
 	
-				if (!keep_layer_with_text_empty) {
+				// if (!keep_layer_with_text_empty) { // #change 1.1.8#1
 					if (linked_mode) {
 						// generate plist chunks
 						groupsStr += groupPlistString({
@@ -1088,10 +1115,12 @@
 							.replace(/</gm, '&lt;')
 							.replace(/>/gm, '&gt;');
 					}
-				}
+				// } // #change 1.1.8#1
 	
 				elementsStr += elementPlistString({
-					resourceId: (linked_mode && !keep_layer_with_text_empty) ? lid : null,
+					// #change 1.1.8#1
+					// resourceId: (linked_mode && !keep_layer_with_text_empty) ? lid : null,
+					resourceId: (linked_mode)? lid : null,
 					name: name,
 					top: lb.top,
 					left: lb.left,
@@ -1101,12 +1130,13 @@
 					originalHeight: originalHeight,
 					zIndex: 1000-lid,
 					key: 10+lid,
-					innerHTML: (linked_mode) ? null : svg_string, // TODO Text insert mode with Hype formats
+					innerHTML: (linked_mode) ? null : svg_string,
 					opacity: layer.opacity/100,
 					className: cleanLayerName,
 				});
 	
-				lid+=1;
+				// increment the layer id
+				lid++;
 			}
 			
 			// postprocessing
@@ -1605,7 +1635,7 @@
 				var vardata = entries[i].vardata;
 				if (countProperties(vardata)){
 					for (var key in vardata){
-						var css_variable_name = ("--"+varName+"-"+key).replace('_','-');
+						var css_variable_name = ("--"+varName+"-"+cleanKey(key));
 						var value = fixContentForCSS(vardata[key].contents);
 						content += "\t"+css_variable_name+": '"+value+"';\n";
 					}
@@ -1617,8 +1647,8 @@
 				var vardata = entries[i].vardata;
 				if (countProperties(vardata)){
 					for (var key in vardata){
-						var css_variable_name = ("--"+varName+"-"+key).replace('_','-');
-						content += "."+varName+"_"+key+"::before { content : var("+css_variable_name+"); white-space: pre-wrap;}\n";
+						var css_variable_name = ("--"+varName+"-"+cleanKey(key));
+						content += "."+varName+"_"+cleanKey(key)+"::before { content : var("+css_variable_name+"); white-space: pre-wrap;}\n";
 					}
 				}
 			}
@@ -1812,12 +1842,14 @@
 		// recursive
 		if (layer.layers.length > 0) {
 			for (var i = 0; i < layer.layers.length; ++i) {
+				// call recursively and merge results
 				var extracted = extractTemplateVars(layer.layers[i]);
 				for (var key in extracted) {
 					data[key] = extracted[key];
 				}
 			}
 		}
+		// return to caller
 		return data
 	}
 	
@@ -1846,17 +1878,40 @@
 	 * @param  {Number}  offsetTop  top offset modifier (optional, default: 0)
 	 * @return {Object}  object with the properties left, top, right, bottom, width, height, x and y
 	 */
-	function getLayerBoundsAsObject(lb, decimals, offsetLeft, offsetTop) {
+	function getLayerBoundsAsObject(lb, decimals) {
 		decimals = decimals || 2;
-		offsetLeft = offsetLeft || 0;
-		offsetTop = offsetTop || 0;
 		return {
-			left: toFixed(lb[0] - offsetLeft, decimals),
-			top: toFixed(-lb[1] + offsetTop, decimals),
-			right: toFixed(lb[2] - offsetLeft, decimals),
-			bottom: toFixed(-lb[3] + offsetTop, decimals),
+			left: toFixed(lb[0], decimals),
+			top: toFixed(-lb[1], decimals),
+			right: toFixed(lb[2], decimals),
+			bottom: toFixed(-lb[3], decimals),
 			width: Math.abs(toFixed(lb[2] - lb[0], decimals)),
 			height: Math.abs(toFixed(lb[1] - lb[3], decimals)),
+		};
+	}
+
+	/**
+	* Transforms the bounds array [left, top, right, bottom] into an object with the properties
+	* left, top, right, bottom, width, height
+	* BUT maximize area to next integer (meaning to round down left and top, and round up right and bottom)
+	*
+	* @param  {Array}   lb  bounds array [left, top, right, bottom]
+	* @param  {Number}  offsetLeft  left offset modifier (optional, default: 0)
+	* @param  {Number}  offsetTop  top offset modifier (optional, default: 0)
+	* @return {Object}  object with the properties left, top, right, bottom, width, height, x and y
+	*/
+	function getLayerBoundsAsObjectMaxed(lb) {
+		var left = Math.floor(lb[0]);
+		var top = -Math.floor(lb[1]);
+		var right = Math.ceil(lb[2]);
+		var bottom = -Math.ceil(lb[3]);
+		return {
+			left: left,
+			top: top,
+			right: right,
+			bottom: bottom,
+			width: Math.abs(right - left),
+			height: Math.abs(bottom - top),
 		};
 	}
 
@@ -1873,13 +1928,6 @@
 		const num = Math.round(n * factor) / factor;
 		return num;
 	}
-
-	/*
-	function toFixed(n, decimals) {
-		decimals = decimals || 2;
-		return n.toFixed(decimals);
-	}
-	*/
 
 	/**
 	 * base64Encode
@@ -2014,7 +2062,8 @@
 	function runHomebrewCleaner(file) {
 		if (file) {
 			var fileContents = readFile(file);
-	
+			if (!fileContents) return false;
+
 			// cleanups
 			// remove tabs, newlines
 			fileContents = fileContents.replace( /[\r\n\t]+/gm, '');
@@ -2030,12 +2079,15 @@
 			fileContents = fileContents.replace(/<g><\/g>/gm, '');
 			// replace HTML IDs with classes
 			fileContents = fileContents.replace(/ id="/gm, ' class="');
+			
+			/*
+			// moved to font mapping routine…
 			// replace quotes
 			fileContents = fileContents.replace(/"/g, "'")
 				// fix collateral after quotes replacement
 				.replace(new RegExp("=''","gm"), "='")
 				.replace(/''\s/g, "' ")
-			
+			*/
 			// save
 			return writeFile(file, fileContents);
 		}
@@ -2067,12 +2119,23 @@
 	* @returns {string} - SVG string with fixed font names
 	*/
 	function applyFontMappingToSvgString(svgString, mapping) {
+		// Remove all mentions of "MT" that are not part of a font family name
+		// This is a workaround for a bug in Illustrator using "MT" in font names
+		// svgString = svgString.replace(/MT'"/g, '\'"');
+		svgString = svgString.replace(new RegExp("MT'","gm"), "'");
+		
+		// loop through all font families
 		for (var fontFamily in mapping){
 			var fontMapping = mapping[fontFamily];
 			var fontFamilyMapped = '';
+			
+			// font mapping can be a string or an object
+			// This is to support complex settings like weight and style
 			if (typeof fontMapping == 'object') {
 				if (fontMapping.family) {
-					//fontFamilyMapped += "font-family=\"'"+fontMapping.family+"'\"";
+					fontMapping.family = trim(fontMapping.family)
+						.replace(new RegExp("$'", "g"), '')
+						.replace(new RegExp("'|", "g"), '');
 					fontFamilyMapped += "font-family='"+fontMapping.family+"'";
 				}
 				// convert bold boolean to weight setting if not given
@@ -2091,13 +2154,32 @@
 				if (fontMapping.style) {
 					fontFamilyMapped += " font-style='"+fontMapping.style+"'";
 				}
-
+			// if fontMapping is a string, just use it
 			} else {
 				fontFamilyMapped = "font-family='"+fontMapping+"'";
 			}
+
+			// Replace font name in SVG string
 			var fontFamilyCompact = fontFamily.split(' ').join('');
-			svgString = svgString.replace(new RegExp("font-family=\"'"+fontFamilyCompact+"'\"","gm"), fontFamilyMapped);	
+			
+			// do a first pass to replace the font-family name based on a version without '-Regular'
+			if(fontFamilyCompact.indexOf('-Regular') > -1) {
+				svgString = svgString.replace(new RegExp("font-family=\"'"+fontFamilyCompact.replace('-Regular','')+"'\"","gm"), fontFamilyMapped);
+			}
+			
+			// Do a second pass to replace the font-family name based on the compact version
+			svgString = svgString.replace(new RegExp("font-family=\"'"+fontFamilyCompact+"'\"","gm"), fontFamilyMapped);
+
 		}
+
+		// replace quotes
+		/*
+		svgString = svgString.replace(/"/g, "'")
+			// fix collateral after quotes replacement
+			.replace(new RegExp("=''","gm"), "='")
+			.replace(/''\s/g, "' ")
+		*/
+		// return SVG string
 		return svgString;
 	}
 	
@@ -2147,6 +2229,27 @@
 			.replace(/[\\\*\/\?;:"\|<>]/g, '');  // remove all special characters			
 	}
 
+	/**
+	 * Generate suitable keys by using the
+	 * object name value as input string
+	 * Precaution: for now, this is the same as cleanName, 
+	 * but might change in the future and allows for customisation.
+	 *
+	 * @param lname - the name value
+	 * @returns the cleaned object name
+	 */
+	function cleanKey(lname) {
+		return lname.replace(/^\s+|\s+$/gm, '') // trim spaces
+			.replace(/\u00E4/g, 'ae') // replace umlaut
+			.replace(/\u00F6/g, 'oe') // replace umlaut
+			.replace(/\u00FC/g, 'ue') // replace umlaut
+			.replace(/\u00DF/g, 'ss') // replace umlaut
+			.replace(/\s+[\-]+\s+/g, '_') // replace spaces, dashes, spaces with underscore
+			.replace(/\-/g, '_') // replace dash with underscore
+			.replace(/\s/g, '_') // replace space with underscore
+			.replace(/[\\\*\/\?;:"\|<>]/g, '');  // remove all special characters			
+	}
+
 		
 	/**
  	* function returning embeded image
@@ -2175,15 +2278,15 @@
 
 	function resourcePlistString(a){return"\n\t\t\t<dict>\n\t\t\t\t<key>fileModificationDate</key>\n\t\t\t\t<date>"+a.modified+"</date>\n\t\t\t\t<key>fileSize</key>\n\t\t\t\t<integer>"+a.fileSize+"</integer>\n\t\t\t\t<key>md5</key>\n\t\t\t\t<string>"+a.md5+"</string>\n\t\t\t\t<key>notifyOnBookmarkChange</key>\n\t\t\t\t<true/>\n\t\t\t\t<key>originalPath</key>\n\t\t\t\t<string>"+a.originalPath+"</string>\n\t\t\t\t<key>resourceName</key>\n\t\t\t\t<string>"+a.fileName+"</string>\n\t\t\t\t<key>shouldAutoResize</key>\n\t\t\t\t<true/>\n\t\t\t\t<key>shouldIncludeInDocumentHeadHTML</key>\n\t\t\t\t<false/>\n\t\t\t\t<key>shouldPreload</key>\n\t\t\t\t<true/>\n\t\t\t\t<key>shouldRemoveWhenNoLongerReferenced</key>\n\t\t\t\t<true/>\n\t\t\t\t<key>type</key>\n\t\t\t\t<string>FileResource</string>\n\t\t\t</dict>\n\t"}
 
-	function textElementPlistString(a){var b=a.name,c=a.top+"px",f=a.left+"px",g=a.height+"px",h=a.width+"px",k=a.zIndex,l=a.key,m=a.opacity,n=a.className,d=a.innerHTML,e="";d&&(e="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>InnerHTML</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+d+"</string>\n\t\t\t\t\t\t</dict>");return"\n\t\t\t\t\t<key>"+l+"</key>\n\t\t\t\t\t<array>"+e+"\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>DisplayName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
+	function textElementPlistString(a){var b=a.name,e=a.top+"px",f=a.left+"px",g=a.height+"px",h=a.width+"px",k=a.zIndex,l=a.key,m=a.opacity,n=a.className,c=a.innerHTML,d="";c&&(d="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>InnerHTML</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+c+"</string>\n\t\t\t\t\t\t</dict>");return"\n\t\t\t\t\t<key>"+l+"</key>\n\t\t\t\t\t<array>"+d+"\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>DisplayName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	b+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Left</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+f+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Opacity</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+m+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ExplicitDimensions</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>YES</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Height</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	g+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Overflow</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>visible</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Width</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+h+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Top</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
-	c+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ZIndex</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+k+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+n+"</string>\n\t\t\t\t\t\t</dict>\n\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontFamily</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
+	e+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ZIndex</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+k+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+n+"</string>\n\t\t\t\t\t\t</dict>\n\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontFamily</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	a.fontFamily+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontWeight</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+a.fontWeight+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>TextColor</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+a.textColor+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontSize</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	(a.fontSize+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Display</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>inline</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>WordWrap</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>break-word</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassType</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>Text</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontStyle</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+
-	a.fontStyle+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>WhiteSpaceCollapsing</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>preserve</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Position</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>absolute</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Overflow</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>visible</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>DisplayName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>Text</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>TagName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>div</string>\n\t\t\t\t\t\t</dict>\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingBottom</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
+	a.fontStyle+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>WhiteSpaceCollapsing</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>preserve</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Position</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>absolute</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Overflow</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>visible</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>TagName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>div</string>\n\t\t\t\t\t\t</dict>\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingBottom</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	(a.paddingBottom+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingRight</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+(a.paddingRight+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingLeft</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+(a.paddingLeft+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingTop</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+
-	(a.paddingTop+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t</array>\n\t")}
+	(a.paddingTop+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t</array>\n\t")};
 
 	function elementPlistString(a){var b=a.resourceId,c=a.name,f=a.top+"px",g=a.left+"px",h=a.height+"px",k=a.width+"px",l=a.originalHeight+"px",m=a.originalWidth+"px",n=a.zIndex,d=a.key,e=a.opacity,r=a.width/a.height,t=a.className;a=a.innerHTML;var p="",q="";a&&(p="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>InnerHTML</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+a+"</string>\n\t\t\t\t\t\t</dict>");b&&(q="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>BackgroundImageResourceGroupOid</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	b+"</string>\n\t\t\t\t\t\t</dict>");return"\n\t\t\t\t\t<key>"+d+"</key>\n\t\t\t\t\t<array>"+p+"\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>DisplayName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+c+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Position</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>absolute</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>OriginalWidth</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
@@ -2223,7 +2326,7 @@
 				// mapping if given
 				var key = fontKey(family, style);
 				var mappedTo = mapping[key] || {};
-				var mapFamily = mappedTo['family'] || item.textRange.textFont.family;
+				var mapFamily = mappedTo['family'] || ''; //item.textRange.textFont.family;
 				var mapBold = mappedTo['bold'] || style.toLowerCase().indexOf('bold')!=-1;
 				var mapItalic = mappedTo['italic'] || style.toLowerCase().indexOf('italic')!=-1;
 				
@@ -2244,7 +2347,7 @@
 						style: style, 
 						mapFamily: mapFamily, 
 						mapBold: mapBold, 
-						mapItalic: mapItalic
+						mapItalic: mapItalic,
 					};
 					fonts.push(element);
 				}
@@ -2299,7 +2402,6 @@
 				node.itemIndex = i;
 			}
 			
-			// on change event for the listbox
 			list.onChange = function(){
 				var item = fonts[list.selection.itemIndex];
 				edit.text = item.mapFamily;
@@ -2308,20 +2410,32 @@
 				inputGroup.enabled = true;
 			}
 			
-			// on click event for the reset button
 			reset.onClick = function(){
 				var index = list.selection.itemIndex;
 				var key = fontKey(fonts[index].family, fonts[index].style);
-				delete mapping[key];
+				delete mapping[key];	
 				dialogFontManager.close();
 				buildDialog(index);
 			}
 			
 			// on change and changing event for the edit text
-			edit.onChanging = edit.onChange = function(){
+			 edit.onChange = edit.onChanging = function(){
 				var font = fonts[list.selection.itemIndex];
-				font.mapFamily = edit.text;
-				list.selection.text = listFontName(font);
+				// sanitize the input allowing only letters, numbers, spaces, commas and single dashes
+				var sanitizedText = edit.text.replace(/"/g, "'");
+				// Replace any character that is not a letter, number, space, comma, single dash, or single quote with an empty string
+				sanitizedText = sanitizedText.replace(/[^a-zA-Z0-9,' \-]/g, '');
+				// Replace any double spaces with single spaces
+				sanitizedText = sanitizedText.replace(/  +/g, ' ');
+				// set the mapping
+				font.mapFamily = sanitizedText;
+				list.selection.text = listFontName(font, sanitizedText);
+				// reset the mapping if the input is empty
+				if (edit.text == '') {
+					reset.onClick();
+				} else {
+					refreshControl(list);
+				}
 			}
 			
 			// on click event for the bold checkbox
@@ -2340,7 +2454,6 @@
 			btn_apply.onClick = function(){
 				var fontMappingCustom = fontMappingToObject(fonts);
 				documentSettings.fontMappingCustom = {}
-				
 
 				if (countProperties(fontMappingCustom) == 0) {
 					delete documentSettings.fontMappingCustom;
@@ -2350,19 +2463,6 @@
 						documentSettings.fontMappingCustom[key] = fontMappingCustom[key];
 					}
 				}
-				
-				// if we have no other branches or remove document settings
-				// else save the document, but only when localDocumentSettings wasn't set
-				// this is probably not needed anymore as we don't call the dialog when localDocumentSettings is set
-				/*
-				if (!localDocumentSettings) {
-					if (countProperties(documentSettings) == 1 && countProperties(fontMappingCustom) == 0 ){
-						removeDocumentSettings();
-					} else {
-						saveDocumentSettings(documentSettings);
-					}
-				}
-				*/
 				
 				dialogFontManager.close(1);
 			}
@@ -2413,7 +2513,8 @@
 		 * @param  {object} font Font object
 		 * @return {string}      Font name with style
 		 */
-		function listFontName(font){
+		function listFontName(font, mapFamily){
+			if (mapFamily) return font.family + " (" + font.style + ")" + ' \u27F6 '+mapFamily;
 			var modified = isFontModified(font);
 			return font.family + " (" + font.style + ")" + (modified?' \u27F6 '+font.mapFamily:'');
 		}
@@ -2424,17 +2525,31 @@
 		 * @param {Object} font - the font object
 		 * @return {Boolean} - true if the font has been modified
 		 */
+		
 		function isFontModified(font){
 			var family = font.family;
 			var style = font.style;
 			var mapFamily = font.mapFamily;
 			var mapBold = font.mapBold;
 			var mapItalic = font.mapItalic;
-			if(family != mapFamily || style.toLowerCase().indexOf('bold')!=-1 != mapBold || style.toLowerCase().indexOf('italic')!=-1 != mapItalic){
+			
+			if(mapFamily != '' || style.toLowerCase().indexOf('bold')!=-1 != mapBold || style.toLowerCase().indexOf('italic')!=-1 != mapItalic){
 				return true;
 			}
 			return false;
 		}
+		
+		/**
+		 * Refresh a control (Workaround for a bug in ScriptUI)
+		 *
+		 * @param {Object} control - the control to refresh
+		 */
+		function refreshControl (control) {
+			var wh = control.size;
+			control.size = [1+wh[0], 1+wh[1]];
+			control.size = [wh[0], wh[1]];
+		}
+
 		
 		/**
 		 * Convert the fonts mapping to a object
@@ -2899,12 +3014,6 @@ function textElementPlistString (o){
 							<string>Overflow</string>
 							<key>objectValue</key>
 							<string>visible</string>
-						</dict>
-						<dict>
-							<key>identifier</key>
-							<string>DisplayName</string>
-							<key>objectValue</key>
-							<string>Text</string>
 						</dict>
 						<dict>
 							<key>identifier</key>
