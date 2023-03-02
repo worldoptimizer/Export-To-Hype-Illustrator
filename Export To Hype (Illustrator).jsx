@@ -1891,11 +1891,11 @@
 		const centerX = (left + right) / 2;
 		const centerY = (top + bottom) / 2;
 
-		// Determine the new left, top, right, and bottom points by snapping them to the nearest even number
-		const newLeft = Math.floor(centerX - (width / 2)) % 2 === 0 ? Math.floor(centerX - (width / 2)) : Math.floor(centerX - (width / 2)) + 1;
-		const newTop = Math.floor(centerY - (height / 2)) % 2 === 0 ? Math.floor(centerY - (height / 2)) : Math.floor(centerY - (height / 2)) + 1;
-		const newRight = Math.ceil(centerX + (width / 2)) % 2 === 0 ? Math.ceil(centerX + (width / 2)) : Math.ceil(centerX + (width / 2)) - 1;
-		const newBottom = Math.ceil(centerY + (height / 2)) % 2 === 0 ? Math.ceil(centerY + (height / 2)) : Math.ceil(centerY + (height / 2)) - 1;
+		// Determine the new left, top, right, and bottom points
+		const newLeft = Math.floor(centerX - (width / 2));
+		const newTop = Math.floor(centerY - (height / 2));
+		const newRight = Math.ceil(centerX + (width / 2));
+		const newBottom = Math.ceil(centerY + (height / 2));
 
 		// Calculate the new width and height of the rectangle
 		const newWidth = newRight - newLeft;
