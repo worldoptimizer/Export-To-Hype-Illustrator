@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.1.8
+ * v1.1.9
  */
 
 /*
@@ -38,6 +38,12 @@
  * 1.1.8  Hype native fonts are now named like the layer and get the same class name
  *        FontManager displays only changed fonts allowing to set any font name
  *        Added a better rounding approach, see getLayerBoundsAsObjectMaxed
+ * 1.1.9  Fixed readFile not detecting correct encoding
+ *        Added empty option to embed mode creating empty rectangles (for CSS)
+ *        Fixed export addons inserting null values
+ *        Changed content addon to include al text layers as classes
+ *        Changed variables and data addon that only named layers are exported
+ *        Added line height to text frame exports
  */
 
 /* 
@@ -61,7 +67,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.8';
+	const _version = '1.1.9';
 
 	// Load settings
 	var localDocumentSettings = loadDocumentSettings();
@@ -234,8 +240,8 @@
 	
 	var _embedMode_linked = 0;
 	var _embedMode_inlined = 1;
-	// var _embedMode_webfont = 2;
-	var embedMode_array = ["linked", "inlined"]; //, "webfont"]; 
+	var _embedMode_empty = 2;
+	var embedMode_array = ["linked", "inlined", "empty"]; 
 	var embedMode = optionsRow.add("dropdownlist", undefined, undefined, {name: "Embed", items: embedMode_array}); 
 		embedMode.helpTip = "Determine if SVG are linked or inlined"
 		embedMode.alignment = ["left","top"];
@@ -853,12 +859,15 @@
 			// check if we have text frames to consider
 			var hasText = checkIfHasText(layer);
 			
-			// create text layer (Hype Font)
+			// create text layer (Hype Font or empty rectangles)
 			if (rectangleForText) {
 				for(var i= 0; i < itemsForRectangles.length; ++i){
 					
 					// shorthands
 					var item = itemsForRectangles[i];
+
+					// store lid in item
+					item.lidAsName = lid;
 					
 					// get layer bounds
 					var lb = getLayerBoundsAsObjectMaxed(item.geometricBounds);
@@ -868,6 +877,9 @@
 					var _fontWeight = textFontStyle.toLowerCase().indexOf('bold')==-1? 'normal' : 'bold';
 					var _fontStyle = textFontStyle.toLowerCase().indexOf('italic')==-1? 'normal' : 'italic';
 					var _fontFamily = item.textRange.textFont.family;
+					
+					// Get the current leading value for the TextFrame's text range
+					var _fontLineHeight = toFixed(item.textRange.leading);
 					
 					// check if we have a custom mapping or a Hype mapping
 					var key = fontKey(_fontFamily, textFontStyle)
@@ -965,6 +977,7 @@
 						textColor: _textColor? RGBToHex(_textColor): '#000',
 						fontSize: Math.floor(item.textRange.size),
 						fontStyle: _fontStyle,
+						fontLineHeight: _fontLineHeight,
 						paddingTop: 0, 
 						paddingLeft: 0,
 						paddingBottom: 0,
@@ -1001,8 +1014,8 @@
 				var saveAsFileName = resourcesFolder.fullName + "/" + cleanLayerName +'.svg';
 				var exportOptions = new ExportOptionsSVG();
 				var saveFile = new File(saveAsFileName);
-				//exportOptions.DTD = SVGDTDVersion.SVG1_1;
-				exportOptions.DTD = SVGDTDVersion.SVG1_0;
+				exportOptions.DTD = SVGDTDVersion.SVG1_1;
+				//exportOptions.DTD = SVGDTDVersion.SVG1_0;
 				
 				exportOptions.coordinatePrecision = 2;
 				exportOptions.documentEncoding = SVGDocumentEncoding.UTF8;
@@ -1011,7 +1024,7 @@
 				// I am still evaluating the best default settings for this
 				exportOptions.optimizeForSVGViewer = true;
 				exportOptions.embedAllFonts = false;
-				//exportOptions.sVGAutoKerning = true
+				exportOptions.sVGAutoKerning = true;
 				//exportOptions.embedRasterImages = true;
 					
 				switch (FontMode) {
@@ -1064,6 +1077,7 @@
 				var linked_mode = true;
 				// if globally requested to be inlined … inline!
 				if (embedMode==_embedMode_inlined) linked_mode = false;
+				if (embedMode==_embedMode_empty) linked_mode = false;
 				// if webfont mode is set … inline!
 				if (FontMode==_FontMode_regular_text_webfont && hasText) linked_mode = false;
 				// if requested by the layer itself directly … inline
@@ -1086,28 +1100,28 @@
 				});
 	
 				// if (!keep_layer_with_text_empty) { // #change 1.1.8#1
-					if (linked_mode) {
-						// generate plist chunks
-						groupsStr += groupPlistString({
-							resourceId: lid,
-							name: name,
-							fileName: fileName,
-						});
-	
-						// generate
-						resourcesStr += resourcePlistString({
-							resourceId: lid,
-							name: name,
-							fileName: fileName,
-							fileSize: saveFile.length,
-							// TODO think about md5 and date given missing shell
-							modified: '2020-08-14T19:11:51Z',//formatDate(saveFile.modified),
-							md5: 'F22A3B6E8D45689658852B3FB7EFF563', //md5ForFile(saveFile.fsName).toUpperCase(),
-							originalPath: '',
-						});
-	
-					} else {
-						
+				if (linked_mode) {
+					// generate plist chunks
+					groupsStr += groupPlistString({
+						resourceId: lid,
+						name: name,
+						fileName: fileName,
+					});
+
+					// generate
+					resourcesStr += resourcePlistString({
+						resourceId: lid,
+						name: name,
+						fileName: fileName,
+						fileSize: saveFile.length,
+						// TODO think about md5 and date given missing shell
+						modified: '2020-08-14T19:11:51Z',//formatDate(saveFile.modified),
+						md5: 'F22A3B6E8D45689658852B3FB7EFF563', //md5ForFile(saveFile.fsName).toUpperCase(),
+						originalPath: '',
+					});
+
+				} else {
+					if (embedMode !== _embedMode_empty) {
 						// read SVG to insert it in innerHTML
 						svg_string = readFile(saveAsFileName);
 						if (svg_string) svg_string = svg_string
@@ -1115,6 +1129,7 @@
 							.replace(/</gm, '&lt;')
 							.replace(/>/gm, '&gt;');
 					}
+				}
 				// } // #change 1.1.8#1
 	
 				elementsStr += elementPlistString({
@@ -1175,56 +1190,70 @@
 			var css_files = [];
 	
 			if (saveCSS_uri) {
-				// push into combined files
-				css_files.push(docPath + '/'+docName+'-uri.css');
+				
 				// write single file
 				saveLayerAsCSS_uri (
 					docPath + '/'+docName+'-uri.css',
 					svgEntries,
 					docName,
 				);
+
+				// assume success and push into combined files
+				css_files.push(docPath + '/'+docName+'-uri.css');
 			}
 			if (saveCSS_Content) {
-				// push into combined files
-				css_files.push(docPath + '/'+docName+'-content.css');
+				
 				// write single file
-				saveLayerAsCSS_content (
+				var success = saveLayerAsCSS_content (
 					docPath + '/'+docName+'-content.css', 
 					svgEntries,
 					docName,
 				);
+
+				if (success) {
+					// push into combined files
+					css_files.push(docPath + '/'+docName+'-content.css');
+				}
 			}
 			if (saveCSS_Variables) {
-				// push into combined files
-				css_files.push(docPath + '/'+docName+'-variables.css');
 				// write single file
-				saveLayerAsCSS_variables (
+				var success = saveLayerAsCSS_variables (
 					docPath + '/'+docName+'-variables.css', 
 					svgEntries,
 					docName,
 				);
+				if (success) {
+					// push into combined files
+					css_files.push(docPath + '/'+docName+'-variables.css');
+				}
+
 			}
 			// save JS
 			if (saveJS_uri) {
-				// push into combined files
-				js_files.push(docPath + '/'+docName+'-uri.js');
+				
 				// write single file
 				saveLayerAsJS_uri (
 					docPath + '/'+docName+'-uri.js', 
 					svgEntries,
 					docName,
 				);
+
+				// assume success and push into combined files
+				js_files.push(docPath + '/'+docName+'-uri.js');
 			}
 	
 			if (saveJS_Data) {
-				// push into combined files
-				js_files.push(docPath + '/'+docName+'-data.js');
+				
 				// write single file
-				saveLayerAsJS_content (
+				var success = saveLayerAsJS_variables (
 					docPath + '/'+docName+'-data.js', 
 					svgEntries,
 					docName,
 				);
+				if (success) {
+					// push into combined files
+					js_files.push(docPath + '/'+docName+'-data.js');
+				}
 			}
 			
 			// write additional combined if more than one file was produced
@@ -1237,8 +1266,6 @@
 	
 		}
 	}
-
-	
 
 	/**
 	 * SVG Cleaner is an application that cleans SVG files from unnecessary data, such as editor metadata, 
@@ -1391,23 +1418,36 @@
 	 * Reads a file and returns the content
 	 *
 	 * @param {String|File} file Path to the file or a File object
+	 * @param {String} [defaultEncoding] The default encoding to use if the file encoding cannot be determined (optional, defaults to UTF-8)
 	 * @return {string} The content of the file
 	 */
-	 function readFile(file){
+	function readFile(file, defaultEncoding) {
 		if (!file) return null;
-		var content = null, f;
+		var content = null,
+			f;
 		if (file instanceof File) {
 			f = file;
 		} else {
 			f = new File(file);
-			f.encoding = 'UTF8';
 		}
 		if (f.open('r')) {
-			content = f.read();
+			var bom = f.readch();
+			if (bom === '\uFEFF') {
+				f.encoding = 'UTF-8';
+			} else if (bom === '\uFFFE') {
+				f.encoding = 'UTF-16LE';
+			} else if (bom === '\u00FE\u00FF') {
+				f.encoding = 'UTF-16BE';
+			} else {
+				f.encoding = defaultEncoding || 'UTF-8';
+				content = bom;
+			}
+			content += f.read();
 			f.close();
 		}
 		return content;
 	}
+
 	
 	/**
 	 * Writes a file
@@ -1429,6 +1469,33 @@
 		if (f.open('w')) {
 			f.write(content);
 			f.close();
+			return true;
+		}
+		return false;
+	}
+
+
+	/**
+	 * Deletes a file if it exists and is in the same directory as the AI file, or outside the directory if unsecure is true
+	 *
+	 * @param {String|File} file Path to the file or a File object
+	 * @param {boolean} [unsecure] Whether to allow deleting files outside of the AI file directory (optional, defaults to false)
+	 * @return {boolean} True if the file was deleted
+	 */
+	function removeFile(file, unsecure) {
+		if (!file) return false;
+		var f, aiFile;
+		if (file instanceof File) {
+			f = file;
+		} else {
+			f = new File(file);
+		}
+		if (f.exists) {
+			aiFile = app.activeDocument.fullName;
+			if (!unsecure && f.path !== aiFile.path) {
+				return false;
+			}
+			f.remove();
 			return true;
 		}
 		return false;
@@ -1626,33 +1693,34 @@
 		// check if we have data to process later
 		for (var i=0; i<entries.length; i++) {
 			var vardata = entries[i].vardata;
-			if (countProperties(vardata)) hasData =  true;
+			// check if vardata contains named text layers
+			for (var key in vardata){
+				if (vardata[key].name) hasData =  true;
+			}
 		}
 		if (hasData){
+			var cssvars = "";
 			var content = ":root {\n";
 			for (var i=0; i<entries.length; i++) {
 				var varName = entries[i].varName;
 				var vardata = entries[i].vardata;
 				if (countProperties(vardata)){
 					for (var key in vardata){
-						var css_variable_name = ("--"+varName+"-"+cleanKey(key));
-						var value = fixContentForCSS(vardata[key].contents);
-						content += "\t"+css_variable_name+": '"+value+"';\n";
+						if (vardata[key].name) {
+							var css_variable_name = ("--"+varName+"-"+cleanKey(key));
+							var value = fixContentForCSS(vardata[key].contents);
+							content += "\t"+css_variable_name+": '"+value+"';\n";
+							cssvars += "."+varName+"_"+cleanKey(key)+"::before { content : var("+css_variable_name+"); white-space: pre-wrap;}\n";
+						}
 					}
 				}
 			}
 			content += "}\n\n";
-			for (var i=0; i<entries.length; i++) {
-				var varName = entries[i].varName;
-				var vardata = entries[i].vardata;
-				if (countProperties(vardata)){
-					for (var key in vardata){
-						var css_variable_name = ("--"+varName+"-"+cleanKey(key));
-						content += "."+varName+"_"+cleanKey(key)+"::before { content : var("+css_variable_name+"); white-space: pre-wrap;}\n";
-					}
-				}
-			}
-			writeFile(file, content);
+			content += cssvars;
+			
+			return writeFile(file, content);
+		} else {
+			return false;
 		}
 	}
 	
@@ -1682,30 +1750,43 @@
 	 * @param {Array} entries Array of entries
 	 * @param {String} docName Name of the document
 	 */
-	function saveLayerAsJS_content(file, entries, docName){
+	function saveLayerAsJS_variables(file, entries, docName){
 		if (!file) return;
 		var hasData = false;
 		// check if we have data to process later
 		for (var i=0; i<entries.length; i++) {
 			var vardata = entries[i].vardata;
-			if (countProperties(vardata)) hasData = true;
+			// check if vardata contains named text layers
+			for (var key in vardata){
+				if (vardata[key].name) hasData =  true;
+			}
 		}
-		if (!hasData) return;
-		var content = "window['Content_"+cleanName(docName)+"'] = {";
-		for (var i=0; i<entries.length; i++) {
-			var varName = entries[i].varName;
-			var vardata = entries[i].vardata;
-			if (countProperties(vardata)){
-				content += "\n\t'"+varName+"' : {";
+		if (hasData) {
+			var content = "window['Content_"+cleanName(docName)+"'] = {";
+			for (var i=0; i<entries.length; i++) {
+				var varName = entries[i].varName;
+				var vardata = entries[i].vardata;
+				// reuse hasData to check if if this layer has named text layers
+				hasData = false;
 				for (var key in vardata){
-					var value = fixContentForJS(vardata[key].contents);
-					content += "\n\t\t'"+key+"' : '"+value+"', ";
-				}
-				content += "\n\t},";
-			}		
+					if (vardata[key].name) hasData = true;
+				}	
+				if (hasData && countProperties(vardata)){
+					content += "\n\t'"+varName+"' : {";
+					for (var key in vardata){
+						if (vardata[key].name) {
+							var value = fixContentForJS(vardata[key].contents);
+							content += "\n\t\t'"+key+"' : '"+value+"', ";
+						}
+					}
+					content += "\n\t},";
+				}		
+			}
+			content += "\n}";
+			return writeFile(file, content);
+		} else {
+			return false;
 		}
-		content += "\n}";
-		return writeFile(file, content);
 	}
 
 	/**
@@ -1756,9 +1837,9 @@
 		var preset = new DocumentPreset();
 		preset.width = doc.width;
 		preset.height = doc.height;
-		preset.colorMode = DocumentColorSpace.RGB;//doc.documentColorSpace;
+		preset.colorMode = DocumentColorSpace.RGB;
 		preset.units = doc.rulerUnits;
-		var copy = app.documents.addDocument(DocumentColorSpace.RGB, preset);//doc.documentColorSpace, preset);
+		var copy = app.documents.addDocument(DocumentColorSpace.RGB, preset);
 		// remove empty layer from new document preset
 		for (i = 0; i < copy.layers.length; i++) {
 		 	if (!copy.layers[i].pageItems.length) copy.layers[i].remove();
@@ -1837,6 +1918,8 @@
 			var item = layer.pageItems[i];
 			if (item.typename == 'TextFrame' && item.name){
 				data[cleanName(item.name)] = item;
+			} else if (item.typename == 'TextFrame' && item.lidAsName) {
+				data[item.lidAsName] = item;
 			}
 		}
 		// recursive
@@ -1874,9 +1957,13 @@
 	* BUT maximize area to next integer (meaning to round down left and top, and round up right and bottom)
 	*
 	* @param  {Array}   lb  bounds array [left, top, right, bottom]
+	* @param {Number} padding padding to add to the bounds
 	* @return {Object}  object with the properties left, top, right, bottom, width, height, x and y
 	*/
-	function getLayerBoundsAsObjectMaxed(lb) {
+	function getLayerBoundsAsObjectMaxed(lb, padding) {
+		// If no padding was specified, default to 0
+		padding = padding || 0;
+
 		// Extract the left, top, right, and bottom values from the array
 		const left = lb[0];
 		const top = -lb[1];
@@ -1892,10 +1979,10 @@
 		const centerY = (top + bottom) / 2;
 
 		// Determine the new left, top, right, and bottom points
-		const newLeft = Math.floor(centerX - (width / 2));
-		const newTop = Math.floor(centerY - (height / 2));
-		const newRight = Math.ceil(centerX + (width / 2));
-		const newBottom = Math.ceil(centerY + (height / 2));
+		const newLeft = Math.floor(centerX - (width / 2)) - padding;
+		const newTop = Math.floor(centerY - (height / 2)) - padding;
+		const newRight = Math.ceil(centerX + (width / 2)) + padding;
+		const newBottom = Math.ceil(centerY + (height / 2)) + padding;
 
 		// Calculate the new width and height of the rectangle
 		const newWidth = newRight - newLeft;
@@ -2278,12 +2365,12 @@
 	function textElementPlistString(a){var b=a.name,e=a.top+"px",f=a.left+"px",g=a.height+"px",h=a.width+"px",k=a.zIndex,l=a.key,m=a.opacity,n=a.className,c=a.innerHTML,d="";c&&(d="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>InnerHTML</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+c+"</string>\n\t\t\t\t\t\t</dict>");return"\n\t\t\t\t\t<key>"+l+"</key>\n\t\t\t\t\t<array>"+d+"\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>DisplayName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	b+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Left</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+f+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Opacity</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+m+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ExplicitDimensions</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>YES</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Height</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	g+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Overflow</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>visible</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Width</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+h+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Top</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
-	e+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ZIndex</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+k+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+n+"</string>\n\t\t\t\t\t\t</dict>\n\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontFamily</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
+	e+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ZIndex</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+k+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+n+"</string>\n\t\t\t\t\t\t</dict>\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontFamily</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	a.fontFamily+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontWeight</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+a.fontWeight+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>TextColor</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+a.textColor+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontSize</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	(a.fontSize+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Display</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>inline</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>WordWrap</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>break-word</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>ClassType</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>Text</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>FontStyle</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+
 	a.fontStyle+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>WhiteSpaceCollapsing</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>preserve</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Position</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>absolute</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Overflow</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>visible</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>TagName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>div</string>\n\t\t\t\t\t\t</dict>\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingBottom</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	(a.paddingBottom+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingRight</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+(a.paddingRight+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingLeft</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+(a.paddingLeft+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>PaddingTop</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+
-	(a.paddingTop+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t</array>\n\t")};
+	(a.paddingTop+"px</string>\n\t\t\t\t\t\t</dict>\n\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>LineHeight</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>")+(a.fontLineHeight+"px</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t</array>\n\t")};
 
 	function elementPlistString(a){var b=a.resourceId,c=a.name,f=a.top+"px",g=a.left+"px",h=a.height+"px",k=a.width+"px",l=a.originalHeight+"px",m=a.originalWidth+"px",n=a.zIndex,d=a.key,e=a.opacity,r=a.width/a.height,t=a.className;a=a.innerHTML;var p="",q="";a&&(p="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>InnerHTML</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+a+"</string>\n\t\t\t\t\t\t</dict>");b&&(q="\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>BackgroundImageResourceGroupOid</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
 	b+"</string>\n\t\t\t\t\t\t</dict>");return"\n\t\t\t\t\t<key>"+d+"</key>\n\t\t\t\t\t<array>"+p+"\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>DisplayName</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+c+"</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>Position</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>absolute</string>\n\t\t\t\t\t\t</dict>\n\t\t\t\t\t\t<dict>\n\t\t\t\t\t\t\t<key>identifier</key>\n\t\t\t\t\t\t\t<string>OriginalWidth</string>\n\t\t\t\t\t\t\t<key>objectValue</key>\n\t\t\t\t\t\t\t<string>"+
@@ -2875,6 +2962,7 @@ function textElementPlistString (o){
 	var textColor = o.textColor;//#HEX
 	var fontSize = o.fontSize+'px';
 	var fontStyle = o.fontStyle;//normal
+	var fontLineHeight = o.fontLineHeight+'px';
 
 	var paddingTop = o.paddingTop+'px';
 	var paddingLeft = o.paddingLeft+'px';
@@ -2944,7 +3032,6 @@ function textElementPlistString (o){
 							<key>objectValue</key>
 							<string>${className}</string>
 						</dict>
-
 
 						<dict>
 							<key>identifier</key>
@@ -3042,6 +3129,13 @@ function textElementPlistString (o){
 							<string>PaddingTop</string>
 							<key>objectValue</key>
 							<string>${paddingTop}</string>
+						</dict>
+
+						<dict>
+							<key>identifier</key>
+							<string>LineHeight</string>
+							<key>objectValue</key>
+							<string>${fontLineHeight}</string>
 						</dict>
 					</array>
 	`;
