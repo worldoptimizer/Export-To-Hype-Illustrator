@@ -9,18 +9,18 @@
 
 ---
   
-Export To Hype Illustrator is a powerful tool that seamlessly exports graphics from Adobe Illustrator to Tumult Hype 4. It is a third-party solution that simplifies the export process by creating a PLIST on the fly and bundling the necessary resources into a hypetemplate or hypesymbol.
+Export To Hype (Illustrator) is a powerful tool that seamlessly exports graphics from Adobe Illustrator to Tumult Hype 4. It is a third-party solution that simplifies the export process by creating a PLIST on the fly and bundling the necessary resources into a hypetemplate or hypesymbol.
 
 This exporter tool was developed after the initial exploration of the concept with Export Hype Photoshop. It has been a game-changer for designers, developers, and publishers who need to create interactive HTML5 content quickly and easily.
 
-The good news is that Export To Hype Illustrator is now open source, thanks to the German press agency, which has contributed to its development costs. It is currently used by the agency for many of their infographics, which are bought and used in newspapers worldwide.
+The good news is that Export To Hype (Illustrator) is now open source, thanks to the German press agency, which has contributed to its development costs. It is currently used by the agency for many of their infographics, which are bought and used in newspapers worldwide.
 
-With Export To Hype Illustrator, designers and developers can export their vector graphics from Adobe Illustrator to Tumult Hype 4 without any hassle, ensuring seamless integration and optimal performance. So, if you want to take your interactive HTML5 content to the next level, Export To Hype Illustrator is the perfect tool for you.
+With Export To Hype (Illustrator), designers and developers can export their vector graphics from Adobe Illustrator to Tumult Hype 4 without any hassle, ensuring seamless integration and optimal performance. So, if you want to take your interactive HTML5 content to the next level, Export To Hype (Illustrator) is the perfect tool for you.
 
 
 ## Installation
 
-To use Export to Hype Illustrator on Mac, you need to first install an ExtendScript .jsx file for Illustrator. This script provides the necessary functionality to export your Illustrator files to Hype. To install the script, follow these steps:
+To use Export To Hype (Illustrator) on Mac, you need to first install an ExtendScript .jsx file for Illustrator. This script provides the necessary functionality to export your Illustrator files to Hype. To install the script, follow these steps:
 
 * Open Finder and navigate to your Illustrator scripts folder. The default path is: `/Applications/Adobe Illustrator CC [version]/Presets/[language]/Scripts`
 * Copy the "`Export To Hype (Illustrator).jsx`" and "`Export To Hype (Illustrator).json`" files to this folder.
@@ -100,7 +100,7 @@ To relink a resource in Tumult Hype, you can follow these steps:
 6. Click the "Update" button to update the element with the new resource file.
   
   
-## Advanced Settings for Exporting to Hype Illustrator
+## Advanced Settings for Exporting to Hype
 In addition to the standard export settings, there are some advanced settings available that can help optimize your exported file for use in Hype. Here's a closer look at some of these settings:
 
 ### Run SVG Cleaner on export (using Export To Hype Helper)
