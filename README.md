@@ -141,8 +141,30 @@ In addition to the standard export options, Illustrator to Hype also offers seve
 > This option generates all of the available export addons for your Illustrator layers in combined files (JS, CSS).
 
 By selecting one or more of these advanced export addons, you can customize your export even further and create files that can be used to apply styles or manipulate the SVG content in your Hype project. Choose the option or combination of options that best fits your needs and project requirements.
+  
+#### SVG: Escaped SVG strings 
+> This This option encodes the URI for the SVG content using escaped SVG strings. This means that special characters in the SVG content, such as "<" and ">", are replaced with their escaped equivalents, such as "<" and ">". This encoding method is human-readable and easy to edit.
+
+#### Base64: Data encoding 
+> This This option encodes the URI for the SVG content using base64 encoding. This means that the SVG content is converted into a base64-encoded string, which is then used as the value of the "data" attribute in the URI. This encoding method is more compact and efficient than escaped SVG strings, but it is not human-readable and cannot be easily edited.
+
+Both encoding options have their own benefits, depending on your specific needs. If you want a more human-readable and editable URI, choose escaped SVG strings. If you want a more compact and efficient URI, choose base64 encoding. Consider the purpose of your project and choose the encoding option that best fits your requirements.
 
 ## This tool is now open source:
 DPA Infocom (Deutsche Presse Agentur, German Press Agency) supported my work and financed the development of this project. They utilize it for creating interactive infographics that reduce layout time, primarily by utilizing .AI or .EPS files from printed materials.
 
-<sup>Brought to you with the help of @ktewes and [![dpa|88x33](https://playground.maxziebell.de/Hype/ExportToHype/dpa-logo-small.png)](https://www.dpa.com/de/unternehmen/dpa-gruppe/dpa-infocom-gmbh/)</sup>
+ 
+### Layer modifiers
+
+#### **.inline**
+> When exporting your Illustrator file to Hype, there is a special naming convention you can use to force inlining of specific layers. Any top-level layer in your Illustrator file that ends with the extension ".inline" will be inlined, regardless of the export settings.
+> 
+> For example, let's say you have an Illustrator file with three top-level layers: "Layer 1", "Layer 2", and "Layer 3.inline". If you choose the "Link" option for SVG content in the export settings, "Layer 1" and "Layer 2" will be linked via a URI, while "Layer 3.inline" will be inlined directly in the HTML, even though it would normally be linked due to the "Link" option being selected.
+> 
+> This naming convention can be useful if you have specific layers that you want to inline for performance or other reasons, while still keeping the rest of the SVG content linked via a URI. Just remember to give the top-level layer the ".inline" extension in order for it to be inlined, regardless of the export settings.
+
+  
+### Acknowledgment and Thanks
+Brought to you with the help of Kalle Tewes who was instrumental in making this tool a reality (@ktewes on the Forums) and [![dpa|88x33](https://playground.maxziebell.de/Hype/ExportToHype/dpa-logo-small.png)](https://www.dpa.com/de/unternehmen/dpa-gruppe/dpa-infocom-gmbh/).
+  
+I also am grateful to Raimar Heber the collaborations that allowed me to use the tool myself. My best wishes to Raimar Heber as he embarks on his retirement. I hope that his retirement is filled with joy, peace, and relaxation, and that he enjoys all the good things that life has to offer.
