@@ -24,7 +24,7 @@ To use Export To Hype (Illustrator) on Mac, you need to first install an ExtendS
 
 * Open Finder and navigate to your Illustrator scripts folder. The default path is: `/Applications/Adobe Illustrator CC [version]/Presets/[language]/Scripts`
 * Copy the "`Export To Hype (Illustrator).jsx`" and "`Export To Hype (Illustrator).json`" files to this folder.
-* (Re)Launch Adobe Illustrator and open the file you want to export.
+* Launch Adobe Illustrator (relaunch if you are already running Adobe Illustrator).
 
 ## Getting Started with Exporting to Hype from Illustrator
 
