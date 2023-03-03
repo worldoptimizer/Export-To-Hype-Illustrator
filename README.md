@@ -170,4 +170,12 @@ Brought to you thanks to Kalle Tewes who was instrumental in making this tool a 
   
 I also am grateful to Raimar Heber the collaborations that allowed me to use the tool myself. My best wishes to Raimar Heber as he embarks on his retirement. I hope that his retirement is filled with joy, peace, and relaxation, and that he enjoys all the good things that life has to offer.
   
-I would like to express my gratitude to the Tumult Hype team for creating the Hype Application. The application bundle contains a wealth of useful files that have made my work creating this tool much easier. Visit the forums, people!
+I would like to express my gratitude to the Tumult Hype team for creating the Hype Application. The application bundle contains a wealth of useful files that have made my work creating this tool much easier. 
+
+### Support the Development of Export to Hype
+#### Become a Sponsor, Buy a Coffee, or Help Finance a Port to Another Platform!
+
+If you find Export to Hype to be a useful tool, consider supporting the development efforts by becoming a sponsor, buying a cup of coffee for the developer, or financing the porting of the tool to another platform. Your support will help ensure that the tool continues to be improved and maintained, benefiting the design and development community. Thank you for your consideration and support!
+
+**And visit the forums!**
+
