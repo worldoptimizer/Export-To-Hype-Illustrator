@@ -161,10 +161,10 @@ Both encoding options have their own benefits, depending on your specific needs.
 
   
 ### Acknowledgment and Thanks
-DPA Infocom (Deutsche Presse Agentur, German Press Agency) supported my work and financed the development of this project. They utilize it for creating interactive infographics that reduce layout time, primarily by utilizing .AI or .EPS files from printed materials. I want to thank Kalle Tewes who was instrumental in making this tool a reality (@ktewes on the Forums) and the German Press Agency (Deutsche Press Agentur) for its support and believing in this long-running effort. 
+DPA Infocom (Part of Deutsche Presse Agentur, German Press Agency) provided support and financing for my project. They use it to create interactive infographics, which saves time on layout by using .AI or .EPS files from printed materials. I would like to express my gratitude to Kalle Tewes, who played a key role in making this tool a reality (@ktewes on the Forums), and to the German Press Agency for their support and belief in this project that has been ongoing for a long time.
 [![dpa|88x33](https://playground.maxziebell.de/Hype/ExportToHype/dpa-logo-small.png)](https://www.dpa.com/de/unternehmen/dpa-gruppe/dpa-infocom-gmbh/).
   
-I also am grateful to Raimar Heber the collaborations that allowed me to use the tool myself. My best wishes to Raimar Heber as he embarks on his retirement. I hope that his retirement is filled with joy, peace, and relaxation, and that he enjoys all the good things that life has to offer.
+I also am grateful to Raimar Heber for the collaborations that allowed me to use the tool myself. My best wishes to Raimar Heber as he embarks on his retirement. I hope that his retirement is filled with joy, peace, and relaxation, and that he enjoys all the good things that life has to offer.
   
 I would like to express my gratitude to the Tumult Hype team for creating the Hype Application. The application bundle contains a wealth of useful files that have made my work creating this tool much easier. 
 
