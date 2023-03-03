@@ -39,11 +39,11 @@ Once your Illustrator file is ready, it's time to export it to Hype. Here's how:
 2. Select "`Export To Hype (Illustrator)`" from the Scripts menu (`File > Scripts > Export To Hype (Illustrator)`).
 3. Follow the prompts to choose your export settings …
 
-### Step. 3: Hype Template, Hype Symbol or Only Resources
+### Step. 3: Hype Template, Hype Symbol or Resources only
 
 When exporting your Illustrator file to Hype, you have three options for the type of file you want to create: Hype Template, Hype Symbol, or Only Resources.
 
-#### Export as Hype Template 
+#### Export as Hype Template
 > This option creates a new Hype document using your Illustrator file as a template. The layers and groups in your Illustrator file will be converted into corresponding elements in Hype, such as divs or images. This option is useful if you want to create a new Hype project based on your Illustrator design.
 
 #### Export as Hype Symbol
@@ -52,9 +52,7 @@ When exporting your Illustrator file to Hype, you have three options for the typ
 #### Export as Resources only
 > This option exports only the resources used in your Illustrator file and doesn't update or create a Hype file. This option is useful if you want to update the resources in your Hype project or just want to relink a file.
 
-Each of these options has its own benefits, depending on your specific needs. Consider the purpose of your project and choose the option that best fits your requirements. 
-
-*If you're just getting started with Hype and have an existing Illustrator file, it's a good idea to start with a Hype Template. This option allows you to easily import your Illustrator design into Hype and start building your project without having to recreate everything from scratch. With the layers and text already in place, you can quickly add animations and interactions to your design.*
+Each of these options has its own benefits, depending on your specific needs. Consider the purpose of your project and choose the option that best fits your requirements.
 
 ### Step. 4: Pick Your Export Options
 
@@ -70,3 +68,26 @@ When exporting your Illustrator file to Hype, you have several options to custom
 > This option allows you to choose how to handle fonts. You can **outline fonts to paths (flattend)**, which converts the text to outlines and creates paths for each character. This option is the most compatible, as it ensures that the text looks the same in any browser. Alternatively, you can include them **as regular text (using webfonts)** with a font-family attribute, which will reference a font file in your project's resources and inline the layers (as background images are sandboxed). This option ensures that the text looks the same regardless of the browser and reduces the SVG size, but it requires the fonts to be installed (either as a webfont or as a system font). You can also create text layers **as empty rectangles (CSS class)**, which will create empty elements in Hype with the dimensions of the text and attach a class name to the layer. This option is useful if you want to add text to your project later or assign it using CSS, data or variables (more advanced use-cases). Finally, you can include text **as native Hype text elements**, which will include the text as HTML inside the Hype element. This option is useful if you would like to retain the ability to edit the text in Hype. Finnal, you can also choose to disregard text layers altogether by choosing **not at all (ignore)** if you do not want to include any text in your exported file.
 
 Each of these options allows you to fine-tune the export settings to meet your specific needs. Consider the requirements of your project and choose the option that best fits your needs.
+
+
+### Step. 5: Export and open in Hype
+
+After you have customized your export settings, it's time to export your Illustrator file and open it in Hype. Here are some key takeaways to keep in mind:
+
+#### Hype Template
+> When you export your Illustrator file as a Hype Template, you will create a file that, when clicked, will open a new Hype file based on the template. This allows you to easily create new Hype projects based on your Illustrator design.
+
+#### Hype Symbol
+> When you export your Illustrator file as a Hype Symbol, after double clicking the Hype symbol it will be imported as a nested symbol into the Hype file that is currently open. Alternatively, you can drag the Hype Symbol into any open Hype file. This allows you to easily reuse your Illustrator design in multiple Hype projects.
+
+#### Resources Only
+> If you choose to export your Illustrator file as resources, you can use the resources in your Hype project by relinking them with the resources library. This allows you to easily update resources in Hype projects exported using Export To Hype.
+
+To relink a resource in Tumult Hype, you can follow these steps:
+1. In the Tumult Hype document, select the element that contains the resource you want to relink.
+2. In the "Element Info" pane on the right side of the Tumult Hype interface, locate the "Resource Library" section.
+3. Click the "Browse" button next to the "Resource" field. This will open a file browser.
+4. Locate the new resource file you want to use and select it.
+5. Click the "Choose" button to close the file browser and update the resource in the "Resource Library" section.
+6. Click the "Update" button to update the element with the new resource file.
+
