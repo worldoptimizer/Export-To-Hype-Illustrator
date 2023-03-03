@@ -149,10 +149,6 @@ By selecting one or more of these advanced export addons, you can customize your
 > This This option encodes the URI for the SVG content using base64 encoding. This means that the SVG content is converted into a base64-encoded string, which is then used as the value of the "data" attribute in the URI. This encoding method is more compact and efficient than escaped SVG strings, but it is not human-readable and cannot be easily edited.
 
 Both encoding options have their own benefits, depending on your specific needs. If you want a more human-readable and editable URI, choose escaped SVG strings. If you want a more compact and efficient URI, choose base64 encoding. Consider the purpose of your project and choose the encoding option that best fits your requirements.
-
-## This tool is now open source:
-DPA Infocom (Deutsche Presse Agentur, German Press Agency) supported my work and financed the development of this project. They utilize it for creating interactive infographics that reduce layout time, primarily by utilizing .AI or .EPS files from printed materials.
-
  
 ### Layer modifiers
 
@@ -165,7 +161,7 @@ DPA Infocom (Deutsche Presse Agentur, German Press Agency) supported my work and
 
   
 ### Acknowledgment and Thanks
-Brought to you thanks to Kalle Tewes who was instrumental in making this tool a reality (@ktewes on the Forums) and the German Press Agency (Deutsche Press Agentur) for its support and believing in this long-running effort.
+DPA Infocom (Deutsche Presse Agentur, German Press Agency) supported my work and financed the development of this project. They utilize it for creating interactive infographics that reduce layout time, primarily by utilizing .AI or .EPS files from printed materials. I want to thank Kalle Tewes who was instrumental in making this tool a reality (@ktewes on the Forums) and the German Press Agency (Deutsche Press Agentur) for its support and believing in this long-running effort. 
 [![dpa|88x33](https://playground.maxziebell.de/Hype/ExportToHype/dpa-logo-small.png)](https://www.dpa.com/de/unternehmen/dpa-gruppe/dpa-infocom-gmbh/).
   
 I also am grateful to Raimar Heber the collaborations that allowed me to use the tool myself. My best wishes to Raimar Heber as he embarks on his retirement. I hope that his retirement is filled with joy, peace, and relaxation, and that he enjoys all the good things that life has to offer.
