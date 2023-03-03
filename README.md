@@ -165,6 +165,11 @@ DPA Infocom (Deutsche Presse Agentur, German Press Agency) supported my work and
 
   
 ### Acknowledgment and Thanks
-Brought to you with the help of Kalle Tewes who was instrumental in making this tool a reality (@ktewes on the Forums) and [![dpa|88x33](https://playground.maxziebell.de/Hype/ExportToHype/dpa-logo-small.png)](https://www.dpa.com/de/unternehmen/dpa-gruppe/dpa-infocom-gmbh/).
+Brought to you thanks to Kalle Tewes who was instrumental in making this tool a reality (@ktewes on the Forums) and the German Press Agency (Deutsche Press Agentur) for its support and believing in this long-running effort.
+[![dpa|88x33](https://playground.maxziebell.de/Hype/ExportToHype/dpa-logo-small.png)](https://www.dpa.com/de/unternehmen/dpa-gruppe/dpa-infocom-gmbh/).
   
 I also am grateful to Raimar Heber the collaborations that allowed me to use the tool myself. My best wishes to Raimar Heber as he embarks on his retirement. I hope that his retirement is filled with joy, peace, and relaxation, and that he enjoys all the good things that life has to offer.
+  
+I would like to express my gratitude to the Tumult Hype team for creating such a remarkable software. The Hype Application bundle contains a wealth of useful files that have made my work as a designer and developer much easier. Their dedication to providing high-quality tools and resources is truly admirable, and I am grateful for their continued support.
+
+In particular, the inclusion of numerous useful files in the Hype Application bundle has been a huge asset to my work. It has allowed me to streamline my workflow and create more polished and professional projects. I appreciate the effort and thoughtfulness that went into curating these resources, and I am sure that many others in the design and development community share my sentiments.
