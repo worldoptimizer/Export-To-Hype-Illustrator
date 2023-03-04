@@ -44,6 +44,8 @@
  *        Changed content addon to include al text layers as classes
  *        Changed variables and data addon that only named layers are exported
  *        Added line height to text frame exports
+ * 1.2.0  Fixed missing addon files if layer only had text
+
  */
 
 /* 
@@ -829,7 +831,7 @@
 		for (layerIndex = 0; layerIndex < totalLayers; layerIndex++) {
 			// preparation
 			layer = docRef.layers[layerIndex];
-	
+			
 			// continue if no content
 			if (!layer.pageItems.length) continue;
 	
@@ -989,7 +991,18 @@
 					lid++;
 				}
 			}
+
+			// if the user wants addons, add them to the svgEntries array #change 1.2.0#1
+			if (enableAddons) svgEntries.push({
+				className: '.'+cleanLayerName,
+				varName: cleanLayerName,
+				vardata : extractTemplateVars(layer),
+			});
+
+
+			// check if we have items on the copied layer
 			if (copyDocNewLayer.pageItems.length) {
+
 				//  trim copyDoc artboard to content on artboard
 				app.executeMenuCommand('selectall');
 
@@ -1090,14 +1103,20 @@
 				} else {
 					svgdata = fileToTinyDataUri(saveAsFileName)
 				}
-	
-				// svgdata
+			
+				// set svgdata in the last entry of the svgEntries array #change 1.2.0#1
+				if (enableAddons && svgEntries.length && svgdata) {
+					svgEntries[svgEntries.length-1].svgdata = svgdata;
+				}
+
+				/* #change 1.2.0#1
 				if (enableAddons) svgEntries.push({
 					className: '.'+cleanLayerName,
 					varName: cleanLayerName,
 					svgdata : svgdata,
 					vardata : extractTemplateVars(layer),
 				});
+				*/
 	
 				// if (!keep_layer_with_text_empty) { // #change 1.1.8#1
 				if (linked_mode) {
@@ -1619,12 +1638,21 @@
 	  * @param {String|File} file Path to the file or a File object
 	  */	
 	 function combineFiles(files, file){
-		 var content = '';
+		 var content = '', temp;
 		 for (var i=0; i < files.length; ++i){
 			 var filename = files[i];
-			 content += readFile(filename);
+			 if (filename instanceof File) {
+				temp = readFile(filename);
+			 }
+			 if (temp) {
+				content += temp;
+			 }
 		 }
-		 writeFile(file, content);
+		 if (content) {
+		 	return writeFile(file, content);
+		 } else {
+		 	return false;
+		 }
 	 }
 
 	/**
@@ -1640,9 +1668,15 @@
 		for (var i=0; i < entries.length; i++) {
 			var className = entries[i].className;
 			var svgdata = entries[i].svgdata;
-			content += className+" {background: url(\""+svgdata+"\") no-repeat 50% 50%/contain !important;}\n";
+			if(svgdata){
+				content += className+" {background: url(\""+svgdata+"\") no-repeat 50% 50%/contain !important;}\n";
+			}
 		}
-		return writeFile(file, content);
+		if (content) {
+			return writeFile(file, content);
+		} else {
+			return false;
+		}
 	}
 	
 	
@@ -1737,9 +1771,15 @@
 		for (var i=0; i<entries.length; i++) {
 			var varName = entries[i].varName;
 			var svgdata = entries[i].svgdata;
-			content += "window['Inline-"+varName+"']=window['"+cleanName(docName)+"_"+varName+"']=\""+svgdata+"\";\n";
+			if (svgdata) {
+				content += "window['Inline-"+varName+"']=window['"+cleanName(docName)+"_"+varName+"']=\""+svgdata+"\";\n";
+			}
 		}
-		return writeFile(file, content);
+		if (content) {
+			return writeFile(file, content);
+		} else {
+			return false;
+		}
 	}
 	
 	
