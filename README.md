@@ -160,10 +160,12 @@ Both encoding options have their own benefits, depending on your specific needs.
 > This naming convention can be useful if you have specific layers that you want to inline for performance or other reasons, while still keeping the rest of the SVG content linked via a URI. Just remember to give the top-level layer the ".inline" extension in order for it to be inlined, regardless of the export settings.
 
 ### Font Mapper
+  
+<img src="https://playground.maxziebell.de/Hype/ExportToHype/FontMapper.png" align="right" width="400" height="auto">
 When you select either the "as native Hype text elements" or "as regular text (using webfonts)" options in Export to Hype (Illustrator), a font family and some other metadata are assigned either to the Hype text layer or the SVG placed in the inner HTML of Hype elements. However, Adobe Illustrator uses Postscript names by default, which may not be compatible with expected webfonts. To address this issue, Export to Hype (Illustrator) offers the Font Mapper tool, which allows you to map Illustrator fonts to the font name of your choice. Note that this tool does not install the font in your exported file, but instead prepares the mapping so that once the font is added to your Hype project, it becomes visible.
 
 Using the Font Mapper tool, you can easily substitute font names that are not compatible with webfonts with names that are. This can help ensure that the fonts used in your Hype project are displayed correctly and consistently across different platforms and browsers.
-
+  
 Let's say you have an Adobe Illustrator file with a text layer that uses the font "MyriadPro-Regular". However, when you export the file to Hype and select the option "as regular text (using webfonts)", you notice that the font is not rendering correctly in the Hype project.
 
 To fix this issue, you can use the Font Mapper tool in Export To Hype (Illustrator). First, select the option "as regular text (using webfonts)" in the export settings. Then, click on the "Font Mapper" button to open the tool.
