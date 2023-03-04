@@ -992,7 +992,7 @@
 				}
 			}
 
-			// if the user wants addons, add them to the svgEntries array #change 1.2.0#1
+			// if the user wants addons, add them to the svgEntries array
 			if (enableAddons) svgEntries.push({
 				className: '.'+cleanLayerName,
 				varName: cleanLayerName,
@@ -1081,11 +1081,6 @@
 				// svg string
 				var svg_string = '';
 	
-				// fontmode empty
-				// this seems like we don't need this anymore, since we can just use the layer bounds)
-				// var keep_layer_with_text_empty = FontMode==_FontMode_empty_rectangle && hasText;
-				// tracked as #change 1.1.8#1 to be removed in the future
-				
 				// assume layers are linked (not inlined!)
 				var linked_mode = true;
 				// if globally requested to be inlined … inline!
@@ -1104,21 +1099,12 @@
 					svgdata = fileToTinyDataUri(saveAsFileName)
 				}
 			
-				// set svgdata in the last entry of the svgEntries array #change 1.2.0#1
+				// set svgdata in the last entry of the svgEntries array
 				if (enableAddons && svgEntries.length && svgdata) {
 					svgEntries[svgEntries.length-1].svgdata = svgdata;
 				}
 
-				/* #change 1.2.0#1
-				if (enableAddons) svgEntries.push({
-					className: '.'+cleanLayerName,
-					varName: cleanLayerName,
-					svgdata : svgdata,
-					vardata : extractTemplateVars(layer),
-				});
-				*/
-	
-				// if (!keep_layer_with_text_empty) { // #change 1.1.8#1
+				// if we are in linked mode, generate the plist chunks
 				if (linked_mode) {
 					// generate plist chunks
 					groupsStr += groupPlistString({
@@ -1149,11 +1135,9 @@
 							.replace(/>/gm, '&gt;');
 					}
 				}
-				// } // #change 1.1.8#1
 	
+				// generate plist chunks
 				elementsStr += elementPlistString({
-					// #change 1.1.8#1
-					// resourceId: (linked_mode && !keep_layer_with_text_empty) ? lid : null,
 					resourceId: (linked_mode)? lid : null,
 					name: name,
 					top: lb.top,
