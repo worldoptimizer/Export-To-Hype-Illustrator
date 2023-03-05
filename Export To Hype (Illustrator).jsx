@@ -45,7 +45,7 @@
  *        Changed variables and data addon that only named layers are exported
  *        Added line height to text frame exports
  * 1.2.0  Fixed missing addon files if layer only had text
-
+ * 1.2.1  Fixed bug where < and > would not be escaped in layer names
  */
 
 /* 
@@ -750,8 +750,10 @@
 				if (layerNames[layer.name]) {
 					var result = confirm("Export to Hype: The layer '" + layer.name + "' is not unique. Do you want to rename it automatically to '" + layer.name + " " + layerNames[layer.name] + "'? "+"\n"+" Cancel to rename manually!");
 					if (result) {
-						layer.name = layer.name + " " + layerNames[layer.name];
-						layerNames[layer.name] = 1;
+						var n = layerNames[layer.name];
+						layerNames[layer.name] += 1;
+						layer.name = layer.name + " " + n;
+					
 					} else {
 						return;
 					}
@@ -921,7 +923,7 @@
 
 					var _className = cleanLayerName+"_"+(item.name? cleanKey(item.name) : lid);
 					// prep name (remove inline notation from name)
-					var _name = layer.name.split('.')[0]+(item.name? ' ('+item.name+')': '');
+					var _name = removeNameModifier(layer.name)+(item.name? ' ('+cleanKey(item.name)+')': '');
 					
 					// Get the text color, note that each 
 					var _textColor = item.textRange.fillColor;
@@ -964,7 +966,7 @@
 
 					// add the text element to the list of elements
 					elementsStr += textElementPlistString({
-						name: _name, // 'Text', <-- old varation of naming it by type
+						name: escapeForPlist(_name), // 'Text', <-- old varation of naming it by type
 						top: lb.top,
 						left: lb.left,
 						height: lb.height,
@@ -1071,7 +1073,7 @@
 				}
 	
 				// prep name (remove inline notation from name)
-				var name = layer.name.split('.')[0];
+				var name = removeNameModifier(layer.name);
 				var fileName = cleanLayerName+'.svg';
 	
 				// set original width and height
@@ -1109,14 +1111,14 @@
 					// generate plist chunks
 					groupsStr += groupPlistString({
 						resourceId: lid,
-						name: name,
+						name: escapeForPlist(name),
 						fileName: fileName,
 					});
 
 					// generate
 					resourcesStr += resourcePlistString({
 						resourceId: lid,
-						name: name,
+						name: escapeForPlist(name),
 						fileName: fileName,
 						fileSize: saveFile.length,
 						// TODO think about md5 and date given missing shell
@@ -1139,7 +1141,7 @@
 				// generate plist chunks
 				elementsStr += elementPlistString({
 					resourceId: (linked_mode)? lid : null,
-					name: name,
+					name:  escapeForPlist(name),
 					top: lb.top,
 					left: lb.left,
 					height: Math.max(1, lb.height),
@@ -1165,7 +1167,7 @@
 		
 		// save plist
 		if (!onlyResources) writeFile(hypePath+'/data.plist', dataPlistString({
-			hypeName: docName,
+			hypeName: escapeForPlist(docName),
 			saveAsSymbol: saveAsSymbol,
 			width: Math.round(parseInt(docWidth)),
 			height: Math.round(parseInt(docHeight)),
@@ -2187,15 +2189,7 @@
 			fileContents = fileContents.replace(/<g><\/g>/gm, '');
 			// replace HTML IDs with classes
 			fileContents = fileContents.replace(/ id="/gm, ' class="');
-			
-			/*
-			// moved to font mapping routine…
-			// replace quotes
-			fileContents = fileContents.replace(/"/g, "'")
-				// fix collateral after quotes replacement
-				.replace(new RegExp("=''","gm"), "='")
-				.replace(/''\s/g, "' ")
-			*/
+
 			// save
 			return writeFile(file, fileContents);
 		}
@@ -2280,13 +2274,6 @@
 
 		}
 
-		// replace quotes
-		/*
-		svgString = svgString.replace(/"/g, "'")
-			// fix collateral after quotes replacement
-			.replace(new RegExp("=''","gm"), "='")
-			.replace(/''\s/g, "' ")
-		*/
 		// return SVG string
 		return svgString;
 	}
@@ -2330,6 +2317,7 @@
 	 * @returns the cleaned object name
 	 */
 	function cleanName(lname) {
+		lname = removeNameModifier(lname);
 		return lname.replace(/^\s+|\s+$/gm, '') // trim spaces
 			.replace(/\s+[\-]+\s+/g, '_') // replace spaces, dashes, spaces with underscore
 			.replace(/\-/g, '_') // replace dash with underscore
@@ -2347,6 +2335,7 @@
 	 * @returns the cleaned object name
 	 */
 	function cleanKey(lname) {
+		lname = removeNameModifier(lname);
 		return lname.replace(/^\s+|\s+$/gm, '') // trim spaces
 			.replace(/\u00E4/g, 'ae') // replace umlaut
 			.replace(/\u00F6/g, 'oe') // replace umlaut
@@ -2358,6 +2347,27 @@
 			.replace(/[\\\*\/\?;:"\|<>]/g, '');  // remove all special characters			
 	}
 
+	/**
+	 * Escape special characters for use in a plist file
+	 *
+	 * @param value - the value to escape
+	 * @returns the escaped value
+	 */
+	function escapeForPlist(value) {
+		return value.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
+	}
+
+	/**
+	 * Remove any name modifier from the given name.
+	 *
+	 * @param name - the name value
+	 * @returns the cleaned name
+	 */
+	function removeNameModifier(name) {
+		return name.split('.')[0];
+	}
 		
 	/**
  	* function returning embeded image
