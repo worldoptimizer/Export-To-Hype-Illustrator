@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.1.9
+ * v1.2.1
  */
 
 /*
@@ -69,7 +69,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.1.9';
+	const _version = '1.2.1';
 
 	// Load settings
 	var localDocumentSettings = loadDocumentSettings();
