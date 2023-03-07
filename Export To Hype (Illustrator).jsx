@@ -286,7 +286,7 @@
 	var _FontMode_not_at_all = 4;
 	//var _FontMode_glyph_paths = 5;
 	var FontMode_array = [
-		"as outlined paths (flattend)",
+		"as outlined paths (flattened)",
 		"as regular text (using webfonts)",
 		"as empty rectangles (CSS class)",
 		"as native Hype text elements",
@@ -603,7 +603,7 @@
 				donation.alignChildren = ["left","center"]; 
 				donation.spacing = 0; 
 				
-				var donationText1 = donation.add("statictext", undefined, "Please, consider a donations or sponsorship", {name: "donation"}); 
+				var donationText1 = donation.add("statictext", undefined, "Please, consider a donation or sponsorship", {name: "donation"}); 
 				var donationText2 = donation.add("statictext", undefined, "to support the development of tools like this.", {name: "donation"});
 				donationText1.graphics.foregroundColor = donationText1.graphics.newPen (donationText1.graphics.PenType.SOLID_COLOR, [0.5 ,1, 0.5], 1);
 				donationText2.graphics.foregroundColor = donationText1.graphics.newPen (donationText2.graphics.PenType.SOLID_COLOR, [0.5 ,1, 0.5], 1);
