@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.2.1
+ * v1.2.2 debug
  */
 
 /*
@@ -46,6 +46,7 @@
  *        Added line height to text frame exports
  * 1.2.0  Fixed missing addon files if layer only had text
  * 1.2.1  Fixed bug where < and > would not be escaped in layer names
+ * 1.2.2  Repaired minor regression in 1.2.1
  */
 
 /* 
@@ -69,7 +70,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.2.1';
+	const _version = '1.2.2';
 
 	// Load settings
 	var localDocumentSettings = loadDocumentSettings();
@@ -966,7 +967,7 @@
 
 					// add the text element to the list of elements
 					elementsStr += textElementPlistString({
-						name: escapeForPlist(_name), // 'Text', <-- old varation of naming it by type
+						name: escapeForPlist(_name),
 						top: lb.top,
 						left: lb.left,
 						height: lb.height,
@@ -1167,7 +1168,7 @@
 		
 		// save plist
 		if (!onlyResources) writeFile(hypePath+'/data.plist', dataPlistString({
-			hypeName: escapeForPlist(docName),
+			hypeName: docName,
 			saveAsSymbol: saveAsSymbol,
 			width: Math.round(parseInt(docWidth)),
 			height: Math.round(parseInt(docHeight)),
@@ -2354,6 +2355,10 @@
 	 * @returns the escaped value
 	 */
 	function escapeForPlist(value) {
+		// return if not set or not string
+		if (!value || typeof value !== 'string') {
+			return value;
+		}
 		return value.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;');
