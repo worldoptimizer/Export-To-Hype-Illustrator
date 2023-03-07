@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.2.2 debug
+ * v1.2.2
  */
 
 /*
