@@ -143,10 +143,10 @@ In addition to the standard export options, Illustrator to Hype also offers seve
 By selecting one or more of these advanced export addons, you can customize your export even further and create files that can be used to apply styles or manipulate the SVG content in your Hype project. Choose the option or combination of options that best fits your needs and project requirements.
   
 #### SVG: Escaped SVG strings 
-> This This option encodes the URI for the SVG content using escaped SVG strings. This means that special characters in the SVG content, such as "<" and ">", are replaced with their escaped equivalents, such as "<" and ">". This encoding method is human-readable and easy to edit.
+> This option encodes the URI for the SVG content using escaped SVG strings. This means that special characters in the SVG content, such as "<" and ">", are replaced with their escaped equivalents, such as "<" and ">". This encoding method is human-readable and easy to edit.
 
 #### Base64: Data encoding 
-> This This option encodes the URI for the SVG content using base64 encoding. This means that the SVG content is converted into a base64-encoded string, which is then used as the value of the "data" attribute in the URI. This encoding method is more compact and efficient than escaped SVG strings, but it is not human-readable and cannot be easily edited.
+> This option encodes the URI for the SVG content using base64 encoding. This means that the SVG content is converted into a base64-encoded string, which is then used as the value of the "data" attribute in the URI. This encoding method is more compact and efficient than escaped SVG strings, but it is not human-readable and cannot be easily edited.
 
 Both encoding options have their own benefits, depending on your specific needs. If you want a more human-readable and editable URI, choose escaped SVG strings. If you want a more compact and efficient URI, choose base64 encoding. Consider the purpose of your project and choose the encoding option that best fits your requirements.
  
