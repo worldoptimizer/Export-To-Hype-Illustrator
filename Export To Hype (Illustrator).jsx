@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.2.2
+ * v1.2.3
  */
 
 /*
@@ -47,6 +47,8 @@
  * 1.2.0  Fixed missing addon files if layer only had text
  * 1.2.1  Fixed bug where < and > would not be escaped in layer names
  * 1.2.2  Repaired minor regression in 1.2.1
+ * 1.2.3  Fixed bom detection in readFile and combined files output
+ *        Abort script if no open documents
  */
 
 /* 
@@ -66,11 +68,16 @@
 
 // IIFE begin
 ;(function () {
+	// abort if no open documents
+	if (app.documents.length === 0) {
+		alert('Export to Hype requires an open document.');
+		return;
+	}
 
 	polyfills();
 
 	/* @const */
-	const _version = '1.2.2';
+	const _version = '1.2.3';
 
 	// Load settings
 	var localDocumentSettings = loadDocumentSettings();
@@ -1203,7 +1210,7 @@
 					svgEntries,
 					docName,
 				);
-
+				
 				// assume success and push into combined files
 				css_files.push(docPath + '/'+docName+'-uri.css');
 			}
@@ -1215,7 +1222,7 @@
 					svgEntries,
 					docName,
 				);
-
+				
 				if (success) {
 					// push into combined files
 					css_files.push(docPath + '/'+docName+'-content.css');
@@ -1446,8 +1453,8 @@
 				f.encoding = 'UTF-16BE';
 			} else {
 				f.encoding = defaultEncoding || 'UTF-8';
-				content = bom;
 			}
+			content = bom;
 			content += f.read();
 			f.close();
 		}
@@ -1627,11 +1634,11 @@
 	 function combineFiles(files, file){
 		 var content = '', temp;
 		 for (var i=0; i < files.length; ++i){
-			 var filename = files[i];
-			 if (filename instanceof File) {
-				temp = readFile(filename);
-			 }
-			 if (temp) {
+			var filename = files[i];
+			temp = readFile(filename);
+			if (temp) {
+				// only filename not path as comment
+				content += '\n/* ' + filename.replace(/^.*[\\\/]/, '') + ' */\n';
 				content += temp;
 			 }
 		 }
