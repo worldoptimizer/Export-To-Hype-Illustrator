@@ -187,7 +187,7 @@ I would like to express my gratitude to the Tumult Hype team for creating the Hy
 
 If you find Export to Hype to be a useful tool, consider supporting the development efforts by [becoming a sponsor](https://github.com/sponsors/worldoptimizer), buying a cup of coffee for the developer, or financing the porting of the tool to another platform. Your support will help ensure that the tool continues to be improved and maintained, benefiting the design and development community. Thank you for your consideration and support!
 
-**And visit the forums!**
+**And visit the [forums](https://forums.tumult.com/)!**
 
 
 ---
