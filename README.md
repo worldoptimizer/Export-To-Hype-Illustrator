@@ -189,3 +189,19 @@ If you find Export to Hype to be a useful tool, consider supporting the developm
 
 **And visit the forums!**
 
+
+---
+
+## Video Tutorials
+
+### Installation
+https://www.youtube.com/watch?v=8-sVx0lgwV0
+
+### Usage
+https://www.youtube.com/watch?v=c0GiljZa9B0
+
+### Advanced
+https://www.youtube.com/watch?v=MxHwRHZrvys
+
+### Introduction by @Daniel 
+https://www.youtube.com/watch?v=wsCa0opbIzc
