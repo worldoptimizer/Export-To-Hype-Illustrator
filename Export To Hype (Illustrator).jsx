@@ -1,7 +1,7 @@
 /*!
  * Export to Hype
  * Copyright Max Ziebell 2023
- * v1.2.3
+ * v1.2.4
  */
 
 /*
@@ -49,6 +49,9 @@
  * 1.2.2  Repaired minor regression in 1.2.1
  * 1.2.3  Fixed bom detection in readFile and combined files output
  *        Abort script if no open documents
+ * 1.2.4  Removed enable-background attribute from SVGs
+ *        Removed xmlns in inline SVGs
+ *        Added style attribute with position to inline SVGs
  */
 
 /* 
@@ -77,7 +80,7 @@
 	polyfills();
 
 	/* @const */
-	const _version = '1.2.3';
+	const _version = '1.2.4';
 
 	// Load settings
 	var localDocumentSettings = loadDocumentSettings();
@@ -1069,9 +1072,12 @@
 				app.activeDocument.exportFile(saveFile, ExportType.SVG, exportOptions);
 	
 				// apply Font mappings to SVG to file (text replacement)
-				runFontMappingOnSvgFile(saveAsFileName, $.assign({},
+				runFontMappingAndCleanupOnSvgFile(saveAsFileName, $.assign({},
 					settings.fontMappingCustom,
 				));
+
+				// TODO: remove enable-background from svg
+				// Add style="position:absolute;top:0;left:0;" to svg when inlining tdb.
 
 				// clean SVG Illustrator produces
 				if(shouldOptimize) {
@@ -1101,17 +1107,19 @@
 				// if requested by the layer itself directly … inline
 				if (layer.name.match(/\.inline\s*$/)) linked_mode = false;
 				
-				// encode SVG
-				var svgdata = '';
-				if (dataURIMode==_dataURIMode_base64){
-					svgdata = fileToBase64(saveAsFileName)
-				} else {
-					svgdata = fileToTinyDataUri(saveAsFileName)
-				}
-			
+				
 				// set svgdata in the last entry of the svgEntries array
-				if (enableAddons && svgEntries.length && svgdata) {
-					svgEntries[svgEntries.length-1].svgdata = svgdata;
+				if (enableAddons && svgEntries.length) {
+					// encode SVG
+					var svgdata = '';
+					if (dataURIMode==_dataURIMode_base64){
+						svgdata = fileToBase64(saveAsFileName)
+					} else {
+						svgdata = fileToTinyDataUri(saveAsFileName)
+					}
+					if (svgdata) {
+						svgEntries[svgEntries.length-1].svgdata = svgdata;
+					}
 				}
 
 				// if we are in linked mode, generate the plist chunks
@@ -1140,6 +1148,10 @@
 						// read SVG to insert it in innerHTML
 						svg_string = readFile(saveAsFileName);
 						if (svg_string) svg_string = svg_string
+							// fix position of inlined SVG in Hype
+							.replace(/<svg/gm, '<svg style="position:absolute;top:0;left:0;"')
+							// inlined SVG don't require the xmlns attribute
+							.replace(/xmlns="[^"]*"/gm, '')
 							.replace(/&/gm, '&amp;')
 							.replace(/</gm, '&lt;')
 							.replace(/>/gm, '&gt;');
@@ -2166,8 +2178,8 @@
 	 * @returns {string} - The file as base64 encoded string.
 	 */
 	function fileToBase64(file) {
-		var content = readFile(file);
-		return content && ('data:image/svg+xml;base64,'+base64Encode(content));
+		var svgString = readFile(file);
+		return svgString && ('data:image/svg+xml;base64,'+base64Encode(svgString));
 	};
 	
 	/**
@@ -2210,16 +2222,26 @@
 	 * @param {String|File} file Path to the file or a File object
 	 * @returns	{Boolean} true if file could be mapped.
 	 */
-	function runFontMappingOnSvgFile(file, mapping) {
+	function runFontMappingAndCleanupOnSvgFile(file, mapping) {
     	if (file) {
 			var fileContents = readFile(file);
 			if (fileContents!=null){
+				//mapping
 				fileContents = applyFontMappingToSvgString(fileContents, mapping);
+				//cleanups
+				fileContents = cleanUpIllustratorSvgString(fileContents);
+				// write file and return
 				return writeFile(file, fileContents);
 			}
     	}
     	return false;
 	};
+
+	function cleanUpIllustratorSvgString(fileContents){
+		// remove enabled-background
+		fileContents = fileContents.replace(/enable-background="[^"]*"/gm, '');
+		return fileContents;
+	}
 
 	/**
 	* Apply font names using mapping (fontMappingForSVG)
